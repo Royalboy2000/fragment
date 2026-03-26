@@ -10,7 +10,7 @@ The reason your link redirects to a channel is because the **Mini App Web App UR
 2. Select your second bot (the one with the username `@selling` or similar).
 3. Go to `Bot Settings` -> `Menu Button` OR `Web App`.
 4. Create/Edit your Mini App named `fragment`.
-5. Set the **Web App URL** to your VPS domain: `https://smskenya.net` (must be HTTPS).
+5. Set the **Web App URL** to your VPS domain with the sub-path: `https://smskenya.net/fragment/` (must be HTTPS and end with `/`).
 6. Save the settings.
 
 Now, when someone clicks `https://t.me/selling/fragment?startapp=XXXX`, it will open YOUR site inside Telegram instead of redirecting.
@@ -62,10 +62,10 @@ python3 run.py
 - **Persistence**: All submissions are saved to `submissions.txt` and sessions are stored in the `sessions/` folder.
 
 ## 📡 Nginx Configuration (Example)
-Make sure your Nginx is proxying traffic to port `8000`:
+Since your root `/` is taken by another service on port 8080, we use the `/fragment` path:
 ```nginx
-location / {
-    proxy_pass http://localhost:8000;
+location /fragment {
+    proxy_pass http://localhost:8000/fragment;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
 }
