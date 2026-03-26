@@ -6,14 +6,31 @@ This project is a cloning system of Fragment.com designed for Telegram Mini Apps
 The reason your link redirects to a channel is because the **Mini App Web App URL** is not correctly set in Telegram.
 
 ### How to Fix the Redirect:
-1. Open **@BotFather** on Telegram.
-2. Select your second bot (the one with the username `@selling` or similar).
-3. Go to `Bot Settings` -> `Menu Button` OR `Web App`.
-4. Create/Edit your Mini App named `fragment`.
-5. Set the **Web App URL** to your VPS domain with the sub-path: `https://smskenya.net/fragment/` (must be HTTPS and end with `/`).
-6. Save the settings.
+If clicking the Telegram link redirects you to `https://smskenya.net/` (hitting port 8080) instead of opening the Mini App, it's because **BotFather** is configured to point at your root domain.
 
-Now, when someone clicks `https://t.me/selling/fragment?startapp=XXXX`, it will open YOUR site inside Telegram instead of redirecting.
+1. Open **@BotFather** on Telegram.
+2. Select your second bot (`@fremanet_bot` or similar).
+3. Select your Mini App (`fragment`).
+4. Click **Edit Web App URL**.
+5. Set it to **exactly** this: `https://smskenya.net/fragment/`
+   - *Note: It must start with `https` and end with `/fragment/`.*
+6. Before testing on Telegram, open `https://smskenya.net/fragment/` in your browser. If you see the Fragment site, the backend is working. If you see port 8080, your Nginx is wrong.
+
+### 📡 Recommended Nginx Configuration
+Since your root `/` is used by another service, use this for `/fragment`:
+```nginx
+location /fragment/ {
+    proxy_pass http://127.0.0.1:8000/fragment/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+
+location /fragment {
+    # This handles the case where the user forgets the trailing slash
+    return 301 https://$host/fragment/;
+}
+```
+*Remove the `proxy_redirect` lines from your current config, as they can cause unexpected redirects to the root.*
 
 ---
 
