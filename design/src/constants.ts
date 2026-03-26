@@ -1,0 +1,82 @@
+import { UsernameNFT } from './types';
+
+export const FEATURED_USERNAMES: UsernameNFT[] = [
+  {
+    id: '1',
+    username: 'news',
+    priceTON: 994000,
+    priceUSD: 5200000,
+    status: 'Sold',
+  },
+  {
+    id: '2',
+    username: 'bank',
+    priceTON: 850000,
+    priceUSD: 4400000,
+    status: 'Sold',
+  },
+  {
+    id: '3',
+    username: 'chat',
+    priceTON: 700000,
+    priceUSD: 3600000,
+    status: 'Sold',
+  },
+  {
+    id: '4',
+    username: 'game',
+    priceTON: 500000,
+    priceUSD: 2600000,
+    status: 'Auction',
+    timeLeft: '2d 4h 12m',
+    highestBid: 450000,
+  },
+  {
+    id: '5',
+    username: 'crypto',
+    priceTON: 450000,
+    priceUSD: 2300000,
+    status: 'Auction',
+    timeLeft: '1d 12h 05m',
+    highestBid: 420000,
+  },
+  {
+    id: '6',
+    username: 'music',
+    priceTON: 380000,
+    priceUSD: 1900000,
+    status: 'On Sale',
+  },
+  {
+    id: '7',
+    username: 'video',
+    priceTON: 320000,
+    priceUSD: 1600000,
+    status: 'Auction',
+    timeLeft: '5h 30m',
+    highestBid: 310000,
+  },
+  {
+    id: '8',
+    username: 'travel',
+    priceTON: 280000,
+    priceUSD: 1400000,
+    status: 'On Sale',
+  },
+  {
+    id: '9',
+    username: 'food',
+    priceTON: 250000,
+    priceUSD: 1300000,
+    status: 'Auction',
+    timeLeft: '12h 15m',
+    highestBid: 240000,
+  },
+  {
+    id: '10',
+    username: 'shop',
+    priceTON: 220000,
+    priceUSD: 1100000,
+    status: 'On Sale',
+  }
+];
