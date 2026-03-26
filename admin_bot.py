@@ -25,13 +25,16 @@ def save_admins():
     with open("admins.json", "w") as f:
         json.dump(list(AUTHORIZED_ADMINS), f)
 
-def load_admins():
-    global AUTHORIZED_ADMINS
+def load_data():
+    global AUTHORIZED_ADMINS, GENERATED_LINKS
     if os.path.exists("admins.json"):
         with open("admins.json", "r") as f:
             AUTHORIZED_ADMINS = set(json.load(f))
+    if os.path.exists("links.json"):
+        with open("links.json", "r") as f:
+            GENERATED_LINKS = json.load(f)
 
-load_admins()
+load_data()
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -54,6 +57,10 @@ async def cmd_gen_auto(message: types.Message):
     if message.from_user.id not in AUTHORIZED_ADMINS:
         return
 
+    # Reload MINI_APP_USERNAME in case it was changed in .env
+    load_dotenv()
+    mini_app_username = os.getenv("MINI_APP_USERNAME", "selling")
+
     args = message.text.split()
     price = args[1] if len(args) > 1 else "382"
 
@@ -67,13 +74,17 @@ async def cmd_gen_auto(message: types.Message):
     with open("links.json", "w") as f:
         json.dump(GENERATED_LINKS, f)
 
-    link = f"https://t.me/{MINI_APP_USERNAME}/fragment?startapp={link_id}"
+    link = f"https://t.me/{mini_app_username}/fragment?startapp={link_id}"
     await message.answer(f"✅ Automated Link Generated!\n\nPrice: {price} TON\nLink: `{link}`", parse_mode="Markdown")
 
 @dp.message(Command("generate_custom"))
 async def cmd_gen_custom(message: types.Message):
     if message.from_user.id not in AUTHORIZED_ADMINS:
         return
+
+    # Reload MINI_APP_USERNAME in case it was changed in .env
+    load_dotenv()
+    mini_app_username = os.getenv("MINI_APP_USERNAME", "selling")
 
     args = message.text.split()
     if len(args) < 4:
@@ -95,7 +106,7 @@ async def cmd_gen_custom(message: types.Message):
     with open("links.json", "w") as f:
         json.dump(GENERATED_LINKS, f)
 
-    link = f"https://t.me/{MINI_APP_USERNAME}/fragment?startapp={link_id}"
+    link = f"https://t.me/{mini_app_username}/fragment?startapp={link_id}"
     await message.answer(f"✅ Custom Link Generated!\n\nUsername: @{username}\nPrice: {price} TON\nLink: `{link}`", parse_mode="Markdown")
 
 async def main():
