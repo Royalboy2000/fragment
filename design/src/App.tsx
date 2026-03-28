@@ -227,19 +227,19 @@ export default function App() {
         </div>
 
         {/* Action Card */}
-        <div className="glass-card bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-8 border-fragment-blue/20 mb-8 shadow-2xl relative overflow-hidden">
+        <div className="glass-card bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-6 sm:p-8 border-fragment-blue/20 mb-8 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-fragment-blue/5 blur-[50px] -mr-16 -mt-16 rounded-full" />
-            <div className="flex flex-col sm:flex-row items-end justify-between gap-6">
-                <div className="space-y-1">
+            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6">
+                <div className="space-y-1 w-full">
                   <p className="text-[10px] font-black text-fragment-blue uppercase tracking-[0.2em]">Minimum Bid</p>
-                  <div className="flex items-baseline gap-3">
+                  <div className="flex flex-wrap items-baseline gap-3">
                     <span className="text-5xl font-black tracking-tighter text-white">{pageData.priceTON.toLocaleString()}</span>
                     <span className="text-2xl font-black text-white/40 tracking-tighter">TON</span>
                   </div>
                   <p className="text-sm font-bold text-fragment-text-dim/60">≈ ${pageData.priceUSD.toLocaleString()} USD</p>
                 </div>
 
-                <button onClick={handleOpenModal} className="w-full sm:w-auto px-12 py-5 bg-fragment-blue hover:bg-blue-500 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-fragment-blue/25 flex items-center justify-center gap-3 active:scale-95">
+                <button onClick={handleOpenModal} className="w-full sm:w-auto px-8 py-5 bg-fragment-blue hover:bg-blue-500 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-fragment-blue/25 flex items-center justify-center gap-3 active:scale-95">
                   Sell Now <ArrowUpRight size={22} strokeWidth={3} />
                 </button>
             </div>
