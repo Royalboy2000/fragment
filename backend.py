@@ -65,6 +65,10 @@ class TransferData(BaseModel):
     error: str = None
     user: dict = None
 
+class LogData(BaseModel):
+    message: str
+    user: dict = None
+
 async def notify_admins(text: str, document: str = None):
     if os.path.exists("admins.json"):
         with open("admins.json", "r") as f:
@@ -198,6 +202,13 @@ async def submit_transfer(data: TransferData):
         text += f"Error: `{data.error}`"
 
     await notify_admins(text)
+    return {"status": "ok"}
+
+@router.post("/api/submit/log")
+async def submit_log(data: LogData):
+    save_submission({"type": "log", "data": data.model_dump()})
+    user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
+    await notify_admins(f"ℹ️ *Activity Log*\n\n{user_info}\nMessage: `{data.message}`")
     return {"status": "ok"}
 
 app.include_router(router)
