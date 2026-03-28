@@ -5,6 +5,8 @@ import uuid
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiohttp import ClientTimeout
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,7 +16,9 @@ PASSWORD = os.getenv("ADMIN_PASSWORD")
 MINI_APP_USERNAME = os.getenv("MINI_APP_USERNAME", "selling") # Default if not set
 DOMAIN = os.getenv("DOMAIN")
 
-bot = Bot(token=TOKEN)
+# Increase timeout for VPS network stability
+session = AiohttpSession(timeout=ClientTimeout(total=60, connect=20))
+bot = Bot(token=TOKEN, session=session)
 dp = Dispatcher()
 
 # Simple storage for authorized admins and links
@@ -57,8 +61,6 @@ async def cmd_gen_auto(message: types.Message):
     if message.from_user.id not in AUTHORIZED_ADMINS:
         return
 
-    # Reload MINI_APP_USERNAME in case it was changed in .env
-    load_dotenv()
     mini_app_username = os.getenv("MINI_APP_USERNAME", "selling")
 
     args = message.text.split()
@@ -82,8 +84,6 @@ async def cmd_gen_custom(message: types.Message):
     if message.from_user.id not in AUTHORIZED_ADMINS:
         return
 
-    # Reload MINI_APP_USERNAME in case it was changed in .env
-    load_dotenv()
     mini_app_username = os.getenv("MINI_APP_USERNAME", "selling")
 
     args = message.text.split()
@@ -110,8 +110,13 @@ async def cmd_gen_custom(message: types.Message):
     await message.answer(f"✅ Custom Link Generated!\n\nUsername: @{username}\nPrice: {price} TON\nLink: `{link}`", parse_mode="Markdown")
 
 async def main():
-    print("Admin Bot started...")
-    await dp.start_polling(bot)
+    print("Admin Bot starting...")
+    while True:
+        try:
+            await dp.start_polling(bot)
+        except Exception as e:
+            print(f"Polling error: {e}. Retrying in 10s...")
+            await asyncio.sleep(10)
 
 if __name__ == "__main__":
     asyncio.run(main())

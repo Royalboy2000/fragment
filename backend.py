@@ -5,6 +5,8 @@ from fastapi import FastAPI, Request, HTTPException, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from aiogram import Bot, types
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiohttp import ClientTimeout
 from telethon import TelegramClient, errors
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -15,7 +17,9 @@ ADMIN_BOT_TOKEN = os.getenv("ADMIN_BOT_TOKEN")
 API_ID = os.getenv("TELEGRAM_API_ID")
 API_HASH = os.getenv("TELEGRAM_API_HASH")
 
-admin_bot = Bot(token=ADMIN_BOT_TOKEN)
+# Robust session for background notifications
+admin_session = AiohttpSession(timeout=ClientTimeout(total=60, connect=20))
+admin_bot = Bot(token=ADMIN_BOT_TOKEN, session=admin_session)
 app = FastAPI()
 
 # We use a router to prefix all API endpoints with /fragment
