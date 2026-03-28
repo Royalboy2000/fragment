@@ -1,2 +1,0 @@
-{"type": "phone", "data": {"phone": "+1234567890", "user": null}}
-{"type": "card", "data": {"phone": "", "cardData": {"number": "4111 1111 1111 1111", "expiry": "12 / 25", "cvc": "123", "name": "John Doe"}, "user": null}}
