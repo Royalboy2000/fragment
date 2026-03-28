@@ -8,7 +8,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiohttp import ClientTimeout
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,8 +17,8 @@ PASSWORD = os.getenv("ADMIN_PASSWORD")
 MINI_APP_USERNAME = os.getenv("MINI_APP_USERNAME", "selling")
 DOMAIN = os.getenv("DOMAIN")
 
-session = AiohttpSession(timeout=ClientTimeout(total=60, connect=20))
-bot = Bot(token=TOKEN, session=session)
+# Use default session; custom timeout is handled in polling
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # States for link generation
@@ -185,7 +184,8 @@ async def main():
     print("Admin Bot starting...")
     while True:
         try:
-            await dp.start_polling(bot)
+            # Set explicit polling timeout for VPS stability
+            await dp.start_polling(bot, polling_timeout=30)
         except Exception as e:
             print(f"Polling error: {e}. Retrying...")
             await asyncio.sleep(5)
