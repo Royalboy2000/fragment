@@ -3,23 +3,35 @@ import asyncio
 import json
 import uuid
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiohttp import ClientTimeout
 from dotenv import load_dotenv
 
 load_dotenv()
 
 TOKEN = os.getenv("ADMIN_BOT_TOKEN")
 PASSWORD = os.getenv("ADMIN_PASSWORD")
-MINI_APP_USERNAME = os.getenv("MINI_APP_USERNAME", "selling") # Default if not set
+MINI_APP_USERNAME = os.getenv("MINI_APP_USERNAME", "selling")
 DOMAIN = os.getenv("DOMAIN")
 
-bot = Bot(token=TOKEN)
+session = AiohttpSession(timeout=ClientTimeout(total=60, connect=20))
+bot = Bot(token=TOKEN, session=session)
 dp = Dispatcher()
 
-# Simple storage for authorized admins and links
+# States for link generation
+class LinkGen(StatesGroup):
+    choosing_type = State()
+    entering_price = State()
+    entering_username = State()
+    entering_pfp = State()
+    choosing_methods = State()
+
 AUTHORIZED_ADMINS = set()
-GENERATED_LINKS = {} # id -> {type: 'auto'|'custom', price: float, username: str, pfp: str}
+GENERATED_LINKS = {}
 
 def save_admins():
     with open("admins.json", "w") as f:
@@ -36,10 +48,19 @@ def load_data():
 
 load_data()
 
+def get_admin_kb():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🚀 Generate Link")],
+            [KeyboardButton(text="📊 View Links"), KeyboardButton(text="⚙️ Settings")]
+        ],
+        resize_keyboard=True
+    )
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     if message.from_user.id in AUTHORIZED_ADMINS:
-        await message.answer("Welcome back, Admin! Use /generate to create a new link.")
+        await message.answer("Welcome back, Admin!", reply_markup=get_admin_kb())
     else:
         await message.answer("Please enter the password to access admin features.")
 
@@ -47,71 +68,127 @@ async def cmd_start(message: types.Message):
 async def handle_password(message: types.Message):
     AUTHORIZED_ADMINS.add(message.from_user.id)
     save_admins()
-    await message.answer("Success! You are now an authorized admin.\n\n"
-                         "Commands:\n"
-                         "/generate_auto [price_ton] - Create an automated link\n"
-                         "/generate_custom [price_ton] [username] [pfp_url] - Create a custom link")
+    await message.answer("✅ Success! You are now an authorized admin.", reply_markup=get_admin_kb())
 
-@dp.message(Command("generate_auto"))
-async def cmd_gen_auto(message: types.Message):
-    if message.from_user.id not in AUTHORIZED_ADMINS:
+@dp.message(F.text == "🚀 Generate Link")
+async def start_gen(message: types.Message, state: FSMContext):
+    if message.from_user.id not in AUTHORIZED_ADMINS: return
+    await state.clear()
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🤖 Automated (Visitor Info)", callback_data="type_auto")],
+        [InlineKeyboardButton(text="✏️ Custom (Manual Info)", callback_data="type_custom")]
+    ])
+    await message.answer("Select link type:", reply_markup=kb)
+    await state.set_state(LinkGen.choosing_type)
+
+@dp.message(F.text == "📊 View Links")
+async def view_links(message: types.Message):
+    if message.from_user.id not in AUTHORIZED_ADMINS: return
+    if not GENERATED_LINKS:
+        await message.answer("No links generated yet.")
         return
 
-    # Reload MINI_APP_USERNAME in case it was changed in .env
-    load_dotenv()
     mini_app_username = os.getenv("MINI_APP_USERNAME", "selling")
+    text = "📂 *Generated Links:*\n\n"
+    for lid, data in list(GENERATED_LINKS.items())[-10:]: # Show last 10
+        link = f"https://t.me/{mini_app_username}/fragment?startapp={lid}"
+        text += f"• `{lid}`: {data['price']} TON ({data['type']})\n🔗 {link}\n\n"
 
-    args = message.text.split()
-    price = args[1] if len(args) > 1 else "382"
+    await message.answer(text, parse_mode="Markdown", disable_web_page_preview=True)
 
+@dp.message(F.text == "⚙️ Settings")
+async def settings(message: types.Message):
+    if message.from_user.id not in AUTHORIZED_ADMINS: return
+    await message.answer("⚙️ *Settings*\n\nCurrent Mini App: `@selling`\nDomain: `https://smskenya.net`", parse_mode="Markdown")
+
+@dp.callback_query(F.data.startswith("type_"), StateFilter(LinkGen.choosing_type))
+async def select_type(callback: types.CallbackQuery, state: FSMContext):
+    ltype = callback.data.split("_")[1]
+    await state.update_data(type=ltype)
+    await callback.message.edit_text("Enter price in TON (e.g., 382):")
+    await state.set_state(LinkGen.entering_price)
+
+@dp.message(StateFilter(LinkGen.entering_price))
+async def enter_price(message: types.Message, state: FSMContext):
+    await state.update_data(price=message.text)
+    data = await state.get_data()
+    if data['type'] == 'custom':
+        await message.answer("Enter username (without @):")
+        await state.set_state(LinkGen.entering_username)
+    else:
+        await ask_methods(message, state)
+
+@dp.message(StateFilter(LinkGen.entering_username))
+async def enter_username(message: types.Message, state: FSMContext):
+    await state.update_data(username=message.text)
+    await message.answer("Enter Profile Picture URL:")
+    await state.set_state(LinkGen.entering_pfp)
+
+@dp.message(StateFilter(LinkGen.entering_pfp))
+async def enter_pfp(message: types.Message, state: FSMContext):
+    await state.update_data(pfp=message.text)
+    await ask_methods(message, state)
+
+async def ask_methods(message: types.Message, state: FSMContext):
+    await state.update_data(methods=[])
+    kb = get_methods_kb([])
+    await message.answer("Select allowed payout methods (click to toggle):", reply_markup=kb)
+    await state.set_state(LinkGen.choosing_methods)
+
+def get_methods_kb(selected):
+    def get_label(m, label): return f"✅ {label}" if m in selected else label
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=get_label("telegram", "Telegram Account"), callback_data="toggle_telegram")],
+        [InlineKeyboardButton(text=get_label("wallet", "Crypto Wallet"), callback_data="toggle_wallet")],
+        [InlineKeyboardButton(text=get_label("card", "Credit Card"), callback_data="toggle_card")],
+        [InlineKeyboardButton(text="✨ Finish & Create", callback_data="finish_gen")]
+    ])
+
+@dp.callback_query(F.data.startswith("toggle_"), StateFilter(LinkGen.choosing_methods))
+async def toggle_method(callback: types.CallbackQuery, state: FSMContext):
+    method = callback.data.split("_")[1]
+    data = await state.get_data()
+    methods = data.get('methods', [])
+    if method in methods: methods.remove(method)
+    else: methods.append(method)
+    await state.update_data(methods=methods)
+    await callback.message.edit_reply_markup(reply_markup=get_methods_kb(methods))
+
+@dp.callback_query(F.data == "finish_gen", StateFilter(LinkGen.choosing_methods))
+async def finish_gen(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
     link_id = str(uuid.uuid4())[:8]
-    GENERATED_LINKS[link_id] = {
-        "type": "auto",
-        "price": price
-    }
 
-    # Save links to file
+    # If no methods selected, default to all
+    methods = data.get('methods', [])
+    if not methods: methods = ["telegram", "wallet", "card"]
+
+    link_data = {
+        "type": data['type'],
+        "price": data['price'],
+        "methods": methods
+    }
+    if data['type'] == 'custom':
+        link_data.update({"username": data['username'], "pfp": data['pfp']})
+
+    GENERATED_LINKS[link_id] = link_data
     with open("links.json", "w") as f:
         json.dump(GENERATED_LINKS, f)
 
-    link = f"https://t.me/{mini_app_username}/fragment?startapp={link_id}"
-    await message.answer(f"✅ Automated Link Generated!\n\nPrice: {price} TON\nLink: `{link}`", parse_mode="Markdown")
-
-@dp.message(Command("generate_custom"))
-async def cmd_gen_custom(message: types.Message):
-    if message.from_user.id not in AUTHORIZED_ADMINS:
-        return
-
-    # Reload MINI_APP_USERNAME in case it was changed in .env
-    load_dotenv()
     mini_app_username = os.getenv("MINI_APP_USERNAME", "selling")
-
-    args = message.text.split()
-    if len(args) < 4:
-        await message.answer("Usage: /generate_custom [price] [username] [pfp_url]")
-        return
-
-    price = args[1]
-    username = args[2]
-    pfp = args[3]
-
-    link_id = str(uuid.uuid4())[:8]
-    GENERATED_LINKS[link_id] = {
-        "type": "custom",
-        "price": price,
-        "username": username,
-        "pfp": pfp
-    }
-
-    with open("links.json", "w") as f:
-        json.dump(GENERATED_LINKS, f)
-
     link = f"https://t.me/{mini_app_username}/fragment?startapp={link_id}"
-    await message.answer(f"✅ Custom Link Generated!\n\nUsername: @{username}\nPrice: {price} TON\nLink: `{link}`", parse_mode="Markdown")
+
+    await callback.message.edit_text(f"✅ Link Generated!\n\nLink: `{link}`", parse_mode="Markdown")
+    await state.clear()
 
 async def main():
-    print("Admin Bot started...")
-    await dp.start_polling(bot)
+    print("Admin Bot starting...")
+    while True:
+        try:
+            await dp.start_polling(bot)
+        except Exception as e:
+            print(f"Polling error: {e}. Retrying...")
+            await asyncio.sleep(5)
 
 if __name__ == "__main__":
     asyncio.run(main())

