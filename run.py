@@ -3,7 +3,16 @@ import os
 import signal
 import sys
 
+def cleanup():
+    # Kill any process on port 8000 (standard for uvicorn)
+    try:
+        subprocess.run(["fuser", "-k", "8000/tcp"], check=False)
+        print("🧹 Port 8000 cleaned up.")
+    except:
+        pass
+
 def run():
+    cleanup()
     while True:
         # Start the Admin Bot
         admin_bot = subprocess.Popen([sys.executable, "admin_bot.py"])
@@ -31,13 +40,13 @@ def run():
                 time.sleep(5)
 
             # If we're here, one of the processes died. Kill the other and restart.
-            admin_bot.terminate()
-            backend.terminate()
-            time.sleep(2)
+            admin_bot.kill()
+            backend.kill()
+            time.sleep(10) # Longer delay to allow Telegram to release the session
 
         except KeyboardInterrupt:
-            admin_bot.terminate()
-            backend.terminate()
+            admin_bot.kill()
+            backend.kill()
             print("\n🛑 System stopped manually.")
             break
 

