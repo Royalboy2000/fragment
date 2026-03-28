@@ -18,7 +18,7 @@ def run():
         admin_bot = subprocess.Popen([sys.executable, "admin_bot.py"])
 
         # Start the Backend/Frontend API
-        backend = subprocess.Popen([sys.executable, "backend.py"])
+        backend = subprocess.Popen(["node", "server/index.js"])
 
         print(f"✅ System started!\nAdmin Bot: {admin_bot.pid}\nBackend: {backend.pid}")
 

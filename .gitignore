@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+.env
+fragment.db
+*.session
+submissions.txt
+admins.json
+links.json
+__pycache__
+.DS_Store
+verification/

