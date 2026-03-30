@@ -116,7 +116,7 @@ async def list_active_wallets(message: types.Message):
                     sid = addr[-6:]
                     ADDR_MAP[sid] = addr
 
-                    user = data.get("user", {})
+                    user = data.get("user") or {}
                     user_info = f"👤 User: {user.get('username', 'N/A')} ({user.get('id', 'N/A')})"
                     text = f"💎 *Wallet Connected*\n\n{user_info}\nAddress: `{addr}`\nIP: `{data.get('ip')}`\nCountry: `{data.get('country')}`"
 

