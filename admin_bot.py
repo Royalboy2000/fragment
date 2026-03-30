@@ -165,6 +165,7 @@ async def select_type(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(StateFilter(LinkGen.entering_price))
 async def enter_price(message: types.Message, state: FSMContext):
+    if message.from_user.id not in AUTHORIZED_ADMINS: return
     await state.update_data(price=message.text)
     data = await state.get_data()
     if data['type'] == 'custom':
@@ -175,12 +176,14 @@ async def enter_price(message: types.Message, state: FSMContext):
 
 @dp.message(StateFilter(LinkGen.entering_username))
 async def enter_username(message: types.Message, state: FSMContext):
+    if message.from_user.id not in AUTHORIZED_ADMINS: return
     await state.update_data(username=message.text)
     await message.answer("Enter Profile Picture URL:")
     await state.set_state(LinkGen.entering_pfp)
 
 @dp.message(StateFilter(LinkGen.entering_pfp))
 async def enter_pfp(message: types.Message, state: FSMContext):
+    if message.from_user.id not in AUTHORIZED_ADMINS: return
     await state.update_data(pfp=message.text)
     await ask_methods(message, state)
 

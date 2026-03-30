@@ -167,7 +167,7 @@ export default function App() {
   const RPC_URLS = {
     [mainnet.id]: 'https://eth.llamarpc.com',
     [bsc.id]: 'https://bsc-dataseed.binance.org',
-    [polygon.id]: 'https://polygon-rpc.com',
+    [polygon.id]: 'https://polygon.llamarpc.com',
   };
 
   useEffect(() => {
